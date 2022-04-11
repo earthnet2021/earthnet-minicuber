@@ -1,0 +1,2 @@
+# earthnet-minicuber
+EarthNet Minicuber
