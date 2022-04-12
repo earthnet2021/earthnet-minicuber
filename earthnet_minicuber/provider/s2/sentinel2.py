@@ -157,12 +157,6 @@ class Sentinel2(provider_base.Provider):
 
                     stack = xr.concat(cm_chunks, dim = "time")
 
-            # TODO
-            # Clean Sentinel 2
-            # Rescale 0-1 ?? 
-            # Fix s.t. for non-categorical layers uses linear interpolation at reprojection
-            # Optimize chunking
-
             bands = stack.band.values
             stack["band"] = [f"s2_{b}" for b in stack.band.values]
 

@@ -12,3 +12,4 @@ from earthnet_minicuber.provider.provider_base import Provider
 from earthnet_minicuber.provider import PROVIDERS
 
 
+load_minicube = Minicuber.load_minicube
