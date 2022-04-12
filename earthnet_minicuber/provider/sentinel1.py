@@ -98,14 +98,16 @@ class Sentinel1(provider_base.Provider):
                     stack["s1_vh"] = stack.where(valid, 0).s1_vh.groupby("time").apply(FILTERS[self.speckle_filter_kwargs["type"]], size=self.speckle_filter_kwargs["size"])
                     stack['s1_vh'] = stack.s1_vh.where(valid.s1_vh)
             
-
-            stack["s1_vv"].attrs = {"provider": "Sentinel 1", "interpolation_type": "linear", "description": "Linear backscatter intensity in VV polarization"}
-            stack["s1_vh"].attrs = {"provider": "Sentinel 1", "interpolation_type": "linear", "description": "Linear backscatter intensity in VH polarization"}
-            stack["s1_mask"].attrs = {"provider": "Sentinel 1", "interpolation_type": "nearest", "description": "Data mask", "classes": """
-            0 - Nodata
-            1 - Valid
-            2 - Invalid (in/near radar shadow)
-            """}
+            if "s1_vv" in stack.variables:
+                stack["s1_vv"].attrs = {"provider": "Sentinel 1", "interpolation_type": "linear", "description": "Linear backscatter intensity in VV polarization"}
+            if "s1_vh" in stack.variables:
+                stack["s1_vh"].attrs = {"provider": "Sentinel 1", "interpolation_type": "linear", "description": "Linear backscatter intensity in VH polarization"}
+            if "s1_mask" in stack.variables:
+                stack["s1_mask"].attrs = {"provider": "Sentinel 1", "interpolation_type": "nearest", "description": "Data mask", "classes": """
+                0 - Nodata
+                1 - Valid
+                2 - Invalid (in/near radar shadow)
+                """}
             
             stack = stack.drop_vars(["epsg", "id"])
 

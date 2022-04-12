@@ -92,9 +92,18 @@ class Minicuber:
 
         elif ("lat" in product_cube.coords) and ("lon" in product_cube.coords):
             lon_grid, lat_grid = self.lon_lat_grid
-            product_cube_nearest = product_cube.filter_by_attrs(interpolation_type=lambda v: ((v is None) or (v == "nearest"))).interp(lon = lon_grid, lat = lat_grid, method = "nearest")
-            product_cube_linear = product_cube.filter_by_attrs(interpolation_type="linear").interp(lon = lon_grid, lat = lat_grid, method = "linear")
-            product_cube = xr.merge([product_cube_nearest, product_cube_linear])
+            product_cube_nearest = product_cube.filter_by_attrs(interpolation_type=lambda v: ((v is None) or (v == "nearest")))
+            if len(product_cube_nearest) > 0:
+                product_cube_nearest = product_cube_nearest.interp(lon = lon_grid, lat = lat_grid, method = "nearest")
+            product_cube_linear = product_cube.filter_by_attrs(interpolation_type="linear")
+            if len(product_cube_linear) > 0:
+                product_cube_linear = product_cube_linear.interp(lon = lon_grid, lat = lat_grid, method = "linear")
+            if (len(product_cube_nearest) > 0) and (len(product_cube_linear) > 0):
+                product_cube = xr.merge([product_cube_nearest, product_cube_linear])
+            elif (len(product_cube_linear) > 0):
+                product_cube = product_cube_linear
+            else:
+                product_cube = product_cube_nearest
         
         product_cube.attrs = {}
 
