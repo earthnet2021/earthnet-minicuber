@@ -1,7 +1,8 @@
 
-from . import provider_base, s2, sentinel1
+from . import provider_base, s2, sentinel1, ndviclim
 
 PROVIDERS = {
     "s2": s2.sentinel2.Sentinel2,
-    "s1": sentinel1.Sentinel1
+    "s1": sentinel1.Sentinel1,
+    "ndviclim": ndviclim.NDVIClim
 }
