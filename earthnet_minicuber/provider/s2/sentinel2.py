@@ -15,6 +15,25 @@ from shapely.geometry import Polygon, box
 from .sen2flux import sunAndViewAngles, computeNBAR, computeCloudMask
 from .. import provider_base
 
+S2BANDS_DESCRIPTION = {
+    "B01": "Coastal aerosol",
+    "B02": "Blue",
+    "B03": "Green",
+    "B04": "Red",
+    "B05": "Red edge 1",
+    "B06": "Red edge 2",
+    "B07": "Red edge 3",
+    "B08": "Near infrared (NIR) Broad",
+    "B8A": "Near infrared (NIR) Narrow",
+    "B09": "Water vapour",
+    "B11": "Short-wave infrared (SWIR) 1",
+    "B12": "Short-wave infrared (SWIR) 2",
+    "AOT": "Aerosol optical thickness",
+    "WVP": "Scene average water vapour",
+    "SCL": "Scene classification layer",
+    "mask": "sen2flux Cloud Mask"
+}
+
 class Sentinel2(provider_base.Provider):
 
     def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, brdf_correction = True, cloud_mask = True):
@@ -30,7 +49,43 @@ class Sentinel2(provider_base.Provider):
         os.environ['AWS_NO_SIGN_REQUEST'] = "TRUE"
         os.environ['AWS_S3_ENDPOINT'] = 's3.af-south-1.amazonaws.com'
 
-        ee.Initialize()
+        if self.cloud_mask:
+            ee.Initialize()
+
+
+    def get_attrs_for_band(self, band):
+
+        attrs = {}
+        attrs["provider"] = "Sentinel 2"
+        attrs["interpolation_type"] = "nearest" if band in ["SCL", "mask"] else "linear"
+        attrs["description"] = S2BANDS_DESCRIPTION[band]
+        if self.brdf_correction and band in ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B11", "B12"]:
+            attrs["brdf_correction"] = "Nadir BRDF Adjusted Reflectance (NBAR)"
+        if band == "SCL":
+            attrs["classes"] = """
+                            0 - No data
+                            1 - Saturated / Defective
+                            2 - Dark Area Pixels
+                            3 - Cloud Shadows
+                            4 - Vegetation
+                            5 - Bare Soils
+                            6 - Water
+                            7 - Clouds low probability / Unclassified
+                            8 - Clouds medium probability
+                            9 - Clouds high probability
+                            10 - Cirrus
+                            11 - Snow / Ice
+                            """
+        elif band == "mask":
+            attrs["classes"] = """
+            0 - free sky
+            1 - cloud
+            2 - cloud shadows
+            3 - snow
+            """
+
+        return attrs
+        
 
 
     def load_data(self, bbox, time_interval):
@@ -47,7 +102,7 @@ class Sentinel2(provider_base.Provider):
             epsg = metadata["proj:epsg"]
             # geotransform = metadata["proj:transform"]
 
-            stack = stackstac.stack(items_s2, epsg = epsg, assets = self.bands, dtype = "float32", properties = ["sentinel:data_coverage", "sentinel:sequence","sentinel:product_id"], band_coords = False, bounds_latlon = bbox, xy_coords = 'center')#.to_dataset("band")
+            stack = stackstac.stack(items_s2, epsg = epsg, assets = self.bands, dtype = "float32", properties = ["sentinel:data_coverage", "sentinel:sequence","sentinel:product_id"], band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 256)#.to_dataset("band")
             
             stack = stack.rename({"id": "id_old"}).rename({"sentinel:product_id": "id"})
             
@@ -102,31 +157,24 @@ class Sentinel2(provider_base.Provider):
 
                     stack = xr.concat(cm_chunks, dim = "time")
 
-            return stack
+            # TODO
+            # Clean Sentinel 2
+            # Rescale 0-1 ?? 
+            # Fix s.t. for non-categorical layers uses linear interpolation at reprojection
+            # Optimize chunking
 
-            # add epsg
-            # add geotransform
+            bands = stack.band.values
+            stack["band"] = [f"s2_{b}" for b in stack.band.values]
 
-            # add stackitemsearch
+            stack = stack.to_dataset("band")
 
-            # add stack raw load <-- here reproject/resample already?? <-- mmh possibly not bc need to match with cloud mask... In general is unclear how to exactly make sure all providers use the exact same grid.. decision to be made: do i want the primaryprovider grid or do i want a regularly-spaced lat-lon grid?... probably makes more sense to get the latter.
-            # Question then is, do I actually reproject the data? Or do i just get the data in original epsg, then transform the coords to become lat-lon and then interpolate them onto a regular lat-lon grid of the correct shape? The latter is actually what Reprojection would also do, but only if i use 2d interpolation, or?? then maybe i should aim for 2d interpolation if possible...
-            # So.. basically load with stackstack and lonlat bounds, use center coordinates. Dont use any regridding yet.. 
-
-
-            # add best orbit filter:
-            # - load metadata
-            # - get data polygon.. intersect that with actual bbox. Find area of intersection. 
-            # (- load 5 days for 1 band and check how many pixels are missing)
-            # - filter by best orbit
-
-            # add brdf correction:
-            # - load metadata
-            # - for bands that exist and can be corrected: correct
-
-            # median for days with >1 obs
-
-            # add davids cloud mask:
-            # - generate geojson for earthengine
-            # - download data from ee in small chunks
+            for band in bands:
+                if band in ["AOT", "WVP"]:
+                    stack[f"s2_{band}"] = (stack[f"s2_{band}"]/65535).astype("float32")
+                elif band not in ["SCL","mask"]:
+                    stack[f"s2_{band}"] = (stack[f"s2_{band}"]/10000).astype("float32")
+                stack[f"s2_{band}"].attrs = self.get_attrs_for_band(band)
             
+            stack = stack.drop_vars(["epsg", "id", "id_old", "sentinel:data_coverage", "sentinel:sequence"])
+
+            return stack

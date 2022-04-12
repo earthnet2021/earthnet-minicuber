@@ -29,7 +29,7 @@ import ee
 import eemont
 import numpy as np
 import pandas as pd
-import planetary_computer as pc
+# import planetary_computer as pc
 import pystac_client
 import rasterio.features
 import stackstac
@@ -47,55 +47,55 @@ from .utils import *
 # from dask_gateway import GatewayCluster
 
 
-def signAndStack(items, bbox, epsg):
-    """Signs the Planetary Computer items from the STAC and stacks them.
+# def signAndStack(items, bbox, epsg):
+#     """Signs the Planetary Computer items from the STAC and stacks them.
 
-    Parameters
-    ----------
-    items : dict
-        Items from the STAC.
-    bbox : dict
-        GeoJSON of the Bounding Box.
-    epsg : int
-        CRS.
+#     Parameters
+#     ----------
+#     items : dict
+#         Items from the STAC.
+#     bbox : dict
+#         GeoJSON of the Bounding Box.
+#     epsg : int
+#         CRS.
 
-    Returns
-    -------
-    xarray.DataArray
-        Stack of signed items.
-    """
-    signed_items = []
-    for item in items:
-        item.clear_links()
-        signed_items.append(pc.sign(item).to_dict())
+#     Returns
+#     -------
+#     xarray.DataArray
+#         Stack of signed items.
+#     """
+#     signed_items = []
+#     for item in items:
+#         item.clear_links()
+#         signed_items.append(pc.sign(item).to_dict())
 
-    S2 = stackstac.stack(
-        signed_items,
-        assets=[
-            "B01",
-            "B02",
-            "B03",
-            "B04",
-            "B05",
-            "B06",
-            "B07",
-            "B08",
-            "B8A",
-            "B09",
-            "B11",
-            "B12",
-            "SCL",
-            "AOT",
-            "WVP",
-        ],
-        resolution=10,
-        bounds=bbox,
-        epsg=epsg,
-    ).where(
-        lambda x: x > 0, other=np.nan
-    )  # NO DATA IS ZERO -> THEN TRANSFORM ZEROS TO NO DATA
+#     S2 = stackstac.stack(
+#         signed_items,
+#         assets=[
+#             "B01",
+#             "B02",
+#             "B03",
+#             "B04",
+#             "B05",
+#             "B06",
+#             "B07",
+#             "B08",
+#             "B8A",
+#             "B09",
+#             "B11",
+#             "B12",
+#             "SCL",
+#             "AOT",
+#             "WVP",
+#         ],
+#         resolution=10,
+#         bounds=bbox,
+#         epsg=epsg,
+#     ).where(
+#         lambda x: x > 0, other=np.nan
+#     )  # NO DATA IS ZERO -> THEN TRANSFORM ZEROS TO NO DATA
 
-    return S2
+#     return S2
 
 
 def sunAndViewAngles(items, ref):
@@ -265,7 +265,7 @@ def computeCloudMask(aoi, arr, year):
         kwargs={"fill_value": "extrapolate"},
     )
     #CLOUD_MASK = CLOUD_MASK.resample(time="1D").max().where(lambda x: x >= 0, drop=True)
-    CLOUD_MASK = CLOUD_MASK.assign_coords(band="CLOUD_MASK").expand_dims("band")
+    CLOUD_MASK = CLOUD_MASK.assign_coords(band="mask").expand_dims("band")
 
     # band_coords = {
     #     "title": "CLOUD_MASK",
@@ -297,383 +297,383 @@ def computeCloudMask(aoi, arr, year):
     return s2_cloudmask
 
 
-def filterImages(arr, percentage=0.1):
-    """Filters the array.
-
-    Parameters
-    ----------
-    arr : xarray.DataArray
-        Stacked array with the cloud mask.
-    percentage : float, default = 0.1
-        Percentage of valid pixels. Keep everything greater than this.
-
-    Returns
-    -------
-    xarray.DataArray
-        Filtered stacked array.
-    """
-    valid_pixels = arr.sel(band="CLOUD_MASK") == 0
-    valid_percentage = valid_pixels.mean(["x", "y"])
-    valid_pixels = valid_pixels.assign_coords({"band": "VALID"})
-    S2_VALID = xr.concat([arr, valid_pixels], dim="band")
-    S2_VALID = S2_VALID.assign_coords(
-        {"valid_percentage": ("time", valid_percentage.values)}
-    )
-    S2_VALID = S2_VALID.where(S2_VALID.valid_percentage > percentage, drop=True)
-
-    return S2_VALID
-
-
-def sen2flux_core(catalog, aoi, bbox, cloud_percentage, iniDate, endDate, year, epsg):
-    """Core code for creating a sen2flux cube.
-
-    Parameters
-    ----------
-    catalog : pystac.Catalog
-        Catalog to sign.
-    aoi : dict
-        GeoJSON of the Bounding Box in geographic coordinates.
-    bbox : dict
-        GeoJSON of the Bounding Box.
-    cloud_percentage : float
-        Filter STAC by this value.
-    iniDate : string
-        Initial date to filter the STAC in YYYY-MM-DD.
-    endDate : string
-        Final date to filter the STAC in YYYY-MM-DD.
-    year : int
-        Year to look for in GEE.
-    epsg : int
-        CRS.
-
-    Returns
-    -------
-    xarray.DataArray
-        sen2flux cube.
-    """
-    SEARCH = catalog.search(
-        intersects=aoi,
-        datetime=f"{iniDate}/{endDate}",
-        collections=["sentinel-2-l2a"],
-        query={"eo:cloud_cover": {"lt": cloud_percentage}},
-    )
-
-    print("Resolving Planetary Computer signatures and stacking...")
-
-    items = list(SEARCH.get_items())
-    REFERENCE = signAndStack(items, bbox, epsg)
-
-    print("Adding Sun and View Angles...")
-
-    SVA, REFERENCE = sunAndViewAngles(items, REFERENCE)
-
-    print("Computing NBAR...")
-
-    NBAR_ARR = computeNBAR(SVA, REFERENCE)
-
-    print("Computing Cloud Mask from Google Earth Engine...")
-
-    NBAR_CLOUDMASK = computeCloudMask(aoi, NBAR_ARR, REFERENCE, year)
-
-    print("Filtering stack by valid pixels...")
-
-    FILTERED = filterImages(NBAR_CLOUDMASK, 0.00625)
-
-    return FILTERED
-
-
-def sen2flux(coords, buffer, year):
-    """Creates a cube for a single year.
-
-    Parameters
-    ----------
-    coords : list
-        Geographic coordinates.
-    buffer : int | float
-        Buffer distance to create the cube in meters.
-    year : int
-        Year to look for.
+# def filterImages(arr, percentage=0.1):
+#     """Filters the array.
+
+#     Parameters
+#     ----------
+#     arr : xarray.DataArray
+#         Stacked array with the cloud mask.
+#     percentage : float, default = 0.1
+#         Percentage of valid pixels. Keep everything greater than this.
+
+#     Returns
+#     -------
+#     xarray.DataArray
+#         Filtered stacked array.
+#     """
+#     valid_pixels = arr.sel(band="CLOUD_MASK") == 0
+#     valid_percentage = valid_pixels.mean(["x", "y"])
+#     valid_pixels = valid_pixels.assign_coords({"band": "VALID"})
+#     S2_VALID = xr.concat([arr, valid_pixels], dim="band")
+#     S2_VALID = S2_VALID.assign_coords(
+#         {"valid_percentage": ("time", valid_percentage.values)}
+#     )
+#     S2_VALID = S2_VALID.where(S2_VALID.valid_percentage > percentage, drop=True)
+
+#     return S2_VALID
+
+
+# def sen2flux_core(catalog, aoi, bbox, cloud_percentage, iniDate, endDate, year, epsg):
+#     """Core code for creating a sen2flux cube.
+
+#     Parameters
+#     ----------
+#     catalog : pystac.Catalog
+#         Catalog to sign.
+#     aoi : dict
+#         GeoJSON of the Bounding Box in geographic coordinates.
+#     bbox : dict
+#         GeoJSON of the Bounding Box.
+#     cloud_percentage : float
+#         Filter STAC by this value.
+#     iniDate : string
+#         Initial date to filter the STAC in YYYY-MM-DD.
+#     endDate : string
+#         Final date to filter the STAC in YYYY-MM-DD.
+#     year : int
+#         Year to look for in GEE.
+#     epsg : int
+#         CRS.
+
+#     Returns
+#     -------
+#     xarray.DataArray
+#         sen2flux cube.
+#     """
+#     SEARCH = catalog.search(
+#         intersects=aoi,
+#         datetime=f"{iniDate}/{endDate}",
+#         collections=["sentinel-2-l2a"],
+#         query={"eo:cloud_cover": {"lt": cloud_percentage}},
+#     )
+
+#     print("Resolving Planetary Computer signatures and stacking...")
+
+#     items = list(SEARCH.get_items())
+#     REFERENCE = signAndStack(items, bbox, epsg)
+
+#     print("Adding Sun and View Angles...")
+
+#     SVA, REFERENCE = sunAndViewAngles(items, REFERENCE)
+
+#     print("Computing NBAR...")
+
+#     NBAR_ARR = computeNBAR(SVA, REFERENCE)
+
+#     print("Computing Cloud Mask from Google Earth Engine...")
+
+#     NBAR_CLOUDMASK = computeCloudMask(aoi, NBAR_ARR, REFERENCE, year)
+
+#     print("Filtering stack by valid pixels...")
+
+#     FILTERED = filterImages(NBAR_CLOUDMASK, 0.00625)
+
+#     return FILTERED
+
+
+# def sen2flux(coords, buffer, year):
+#     """Creates a cube for a single year.
+
+#     Parameters
+#     ----------
+#     coords : list
+#         Geographic coordinates.
+#     buffer : int | float
+#         Buffer distance to create the cube in meters.
+#     year : int
+#         Year to look for.
 
-    Returns
-    -------
-    xarray.DataArray
-        sen2flux cube for a specific year.
-    """
-    s1iDate = f"{year}-01-01"
-    s1eDate = f"{year}-06-30"
+#     Returns
+#     -------
+#     xarray.DataArray
+#         sen2flux cube for a specific year.
+#     """
+#     s1iDate = f"{year}-01-01"
+#     s1eDate = f"{year}-06-30"
 
-    s2iDate = f"{year}-07-01"
-    s2eDate = f"{year}-12-31"
+#     s2iDate = f"{year}-07-01"
+#     s2eDate = f"{year}-12-31"
 
-    print(f"Resolving Bounding Box for coordinates {coords}...")
+#     print(f"Resolving Bounding Box for coordinates {coords}...")
 
-    utm_crs_list = query_utm_crs_info(
-        datum_name="WGS 84",
-        area_of_interest=AreaOfInterest(coords[0], coords[1], coords[0], coords[1]),
-    )
+#     utm_crs_list = query_utm_crs_info(
+#         datum_name="WGS 84",
+#         area_of_interest=AreaOfInterest(coords[0], coords[1], coords[0], coords[1]),
+#     )
 
-    epsg = int(utm_crs_list[0].code)
+#     epsg = int(utm_crs_list[0].code)
 
-    aoi = towerFootprint(coords[0], coords[1], buffer)
-    bbox = rasterio.features.bounds(towerFootprint(coords[0], coords[1], buffer, False))
+#     aoi = towerFootprint(coords[0], coords[1], buffer)
+#     bbox = rasterio.features.bounds(towerFootprint(coords[0], coords[1], buffer, False))
 
-    print(f"Resolving Sentinel-2 L2A for year {year}...")
+#     print(f"Resolving Sentinel-2 L2A for year {year}...")
 
-    CATALOG = pystac_client.Client.open(
-        "https://planetarycomputer.microsoft.com/api/stac/v1"
-    )
-    valid_area = (1 - (0.5 * ((buffer * 2 / 10) ** 2) / (10980**2))) * 100
+#     CATALOG = pystac_client.Client.open(
+#         "https://planetarycomputer.microsoft.com/api/stac/v1"
+#     )
+#     valid_area = (1 - (0.5 * ((buffer * 2 / 10) ** 2) / (10980**2))) * 100
 
-    print("Resolving 1st semester...")
+#     print("Resolving 1st semester...")
 
-    to_concat = []
+#     to_concat = []
 
-    try:
-        S2S1 = sen2flux_core(
-            CATALOG, aoi, bbox, valid_area, s1iDate, s1eDate, year, epsg
-        ).compute()
-        S2S1.name = "sen2flux"
-        to_concat.append(S2S1)
-    except:
-        print("No images found for the first semester!")
+#     try:
+#         S2S1 = sen2flux_core(
+#             CATALOG, aoi, bbox, valid_area, s1iDate, s1eDate, year, epsg
+#         ).compute()
+#         S2S1.name = "sen2flux"
+#         to_concat.append(S2S1)
+#     except:
+#         print("No images found for the first semester!")
 
-    print("Resolving 2nd semester...")
+#     print("Resolving 2nd semester...")
 
-    try:
-        S2S2 = sen2flux_core(
-            CATALOG, aoi, bbox, valid_area, s2iDate, s2eDate, year, epsg
-        ).compute()
-        S2S2.name = "sen2flux"
-        to_concat.append(S2S2)
-    except:
-        print("No images found for the second semester!")
+#     try:
+#         S2S2 = sen2flux_core(
+#             CATALOG, aoi, bbox, valid_area, s2iDate, s2eDate, year, epsg
+#         ).compute()
+#         S2S2.name = "sen2flux"
+#         to_concat.append(S2S2)
+#     except:
+#         print("No images found for the second semester!")
 
-    print("Concatenating and adding attributes...")
+#     print("Concatenating and adding attributes...")
 
-    if len(to_concat) > 0:
-        # S2FLX = xr.concat([S2S1,S2S2],dim = "time")
+#     if len(to_concat) > 0:
+#         # S2FLX = xr.concat([S2S1,S2S2],dim = "time")
 
-        if len(to_concat) > 1:
-            S2FLX = xr.concat(to_concat, dim="time")
-        else:
-            S2FLX = to_concat[0]
+#         if len(to_concat) > 1:
+#             S2FLX = xr.concat(to_concat, dim="time")
+#         else:
+#             S2FLX = to_concat[0]
 
-        S2FLX.attrs["crs"] = f"+init=epsg:{S2FLX.epsg.data}"
-        S2FLX.attrs["res"] = np.array([10.0, 10.0])
-        S2FLX.attrs["coords"] = np.array(coords)
-        S2FLX.attrs["xy"] = np.array(towerCoordinates(coords[0], coords[1]))
-        S2FLX.attrs["scales"] = np.concatenate(
-            (np.repeat(0.0001, 12), 1.0, np.repeat(0.0001, 9), 1.0, 1.0), axis=None
-        )
-        S2FLX.attrs["offsets"] = np.repeat(0.0, 24)
+#         S2FLX.attrs["crs"] = f"+init=epsg:{S2FLX.epsg.data}"
+#         S2FLX.attrs["res"] = np.array([10.0, 10.0])
+#         S2FLX.attrs["coords"] = np.array(coords)
+#         S2FLX.attrs["xy"] = np.array(towerCoordinates(coords[0], coords[1]))
+#         S2FLX.attrs["scales"] = np.concatenate(
+#             (np.repeat(0.0001, 12), 1.0, np.repeat(0.0001, 9), 1.0, 1.0), axis=None
+#         )
+#         S2FLX.attrs["offsets"] = np.repeat(0.0, 24)
 
-        S2FLX = S2FLX.reset_coords(drop=True)
+#         S2FLX = S2FLX.reset_coords(drop=True)
 
-        if "spec" in S2FLX.attrs.keys():
-            del S2FLX.attrs["spec"]
-            del S2FLX.attrs["transform"]
-            del S2FLX.attrs["resolution"]
+#         if "spec" in S2FLX.attrs.keys():
+#             del S2FLX.attrs["spec"]
+#             del S2FLX.attrs["transform"]
+#             del S2FLX.attrs["resolution"]
 
-        print("Done!")
+#         print("Done!")
 
-        return S2FLX
-    else:
-        print(f"No images were found for {year}")
+#         return S2FLX
+#     else:
+#         print(f"No images were found for {year}")
 
 
-def sen2flux_semester(coords, buffer, year, semester):
+# def sen2flux_semester(coords, buffer, year, semester):
 
-    if semester == 1:
+#     if semester == 1:
 
-        s1iDate = f"{year}-01-01"
-        s1eDate = f"{year}-03-31"
+#         s1iDate = f"{year}-01-01"
+#         s1eDate = f"{year}-03-31"
 
-        s2iDate = f"{year}-04-01"
-        s2eDate = f"{year}-06-30"
+#         s2iDate = f"{year}-04-01"
+#         s2eDate = f"{year}-06-30"
 
-    if semester == 2:
+#     if semester == 2:
 
-        s1iDate = f"{year}-07-01"
-        s1eDate = f"{year}-09-30"
+#         s1iDate = f"{year}-07-01"
+#         s1eDate = f"{year}-09-30"
 
-        s2iDate = f"{year}-10-01"
-        s2eDate = f"{year}-12-31"
+#         s2iDate = f"{year}-10-01"
+#         s2eDate = f"{year}-12-31"
 
-    print(f"Resolving Bounding Box for coordinates {coords}...")
+#     print(f"Resolving Bounding Box for coordinates {coords}...")
 
-    utm_crs_list = query_utm_crs_info(
-        datum_name="WGS 84",
-        area_of_interest=AreaOfInterest(coords[0], coords[1], coords[0], coords[1]),
-    )
+#     utm_crs_list = query_utm_crs_info(
+#         datum_name="WGS 84",
+#         area_of_interest=AreaOfInterest(coords[0], coords[1], coords[0], coords[1]),
+#     )
 
-    epsg = int(utm_crs_list[0].code)
+#     epsg = int(utm_crs_list[0].code)
 
-    aoi = towerFootprint(coords[0], coords[1], buffer)
-    bbox = rasterio.features.bounds(towerFootprint(coords[0], coords[1], buffer, False))
+#     aoi = towerFootprint(coords[0], coords[1], buffer)
+#     bbox = rasterio.features.bounds(towerFootprint(coords[0], coords[1], buffer, False))
 
-    print(f"Resolving Sentinel-2 L2A for year {year}-{semester}")
+#     print(f"Resolving Sentinel-2 L2A for year {year}-{semester}")
 
-    CATALOG = pystac_client.Client.open(
-        "https://planetarycomputer.microsoft.com/api/stac/v1"
-    )
-    valid_area = (1 - (0.5 * ((buffer * 2 / 10) ** 2) / (10980**2))) * 100
+#     CATALOG = pystac_client.Client.open(
+#         "https://planetarycomputer.microsoft.com/api/stac/v1"
+#     )
+#     valid_area = (1 - (0.5 * ((buffer * 2 / 10) ** 2) / (10980**2))) * 100
 
-    print("Resolving 1st part...")
+#     print("Resolving 1st part...")
 
-    to_concat = []
+#     to_concat = []
 
-    try:
-        S2S1 = sen2flux_core(
-            CATALOG, aoi, bbox, valid_area, s1iDate, s1eDate, year, epsg
-        ).compute()
-        S2S1.name = "sen2flux"
-        to_concat.append(S2S1)
-    except:
-        print("No images found for the first part!")
+#     try:
+#         S2S1 = sen2flux_core(
+#             CATALOG, aoi, bbox, valid_area, s1iDate, s1eDate, year, epsg
+#         ).compute()
+#         S2S1.name = "sen2flux"
+#         to_concat.append(S2S1)
+#     except:
+#         print("No images found for the first part!")
 
-    print("Resolving 2nd part...")
+#     print("Resolving 2nd part...")
 
-    try:
-        S2S2 = sen2flux_core(
-            CATALOG, aoi, bbox, valid_area, s2iDate, s2eDate, year, epsg
-        ).compute()
-        S2S2.name = "sen2flux"
-        to_concat.append(S2S2)
-    except:
-        print("No images found for the second part!")
+#     try:
+#         S2S2 = sen2flux_core(
+#             CATALOG, aoi, bbox, valid_area, s2iDate, s2eDate, year, epsg
+#         ).compute()
+#         S2S2.name = "sen2flux"
+#         to_concat.append(S2S2)
+#     except:
+#         print("No images found for the second part!")
 
-    print("Concatenating and adding attributes...")
+#     print("Concatenating and adding attributes...")
 
-    if len(to_concat) > 0:
-        # S2FLX = xr.concat([S2S1,S2S2],dim = "time")
+#     if len(to_concat) > 0:
+#         # S2FLX = xr.concat([S2S1,S2S2],dim = "time")
 
-        if len(to_concat) > 1:
-            S2FLX = xr.concat(to_concat, dim="time")
-        else:
-            S2FLX = to_concat[0]
-
-        S2FLX.attrs["crs"] = f"+init=epsg:{S2FLX.epsg.data}"
-        S2FLX.attrs["res"] = np.array([10.0, 10.0])
-        S2FLX.attrs["coords"] = np.array(coords)
-        S2FLX.attrs["xy"] = np.array(towerCoordinates(coords[0], coords[1]))
-        S2FLX.attrs["scales"] = np.concatenate(
-            (np.repeat(0.0001, 12), 1.0, np.repeat(0.0001, 9), 1.0, 1.0), axis=None
-        )
-        S2FLX.attrs["offsets"] = np.repeat(0.0, 24)
+#         if len(to_concat) > 1:
+#             S2FLX = xr.concat(to_concat, dim="time")
+#         else:
+#             S2FLX = to_concat[0]
+
+#         S2FLX.attrs["crs"] = f"+init=epsg:{S2FLX.epsg.data}"
+#         S2FLX.attrs["res"] = np.array([10.0, 10.0])
+#         S2FLX.attrs["coords"] = np.array(coords)
+#         S2FLX.attrs["xy"] = np.array(towerCoordinates(coords[0], coords[1]))
+#         S2FLX.attrs["scales"] = np.concatenate(
+#             (np.repeat(0.0001, 12), 1.0, np.repeat(0.0001, 9), 1.0, 1.0), axis=None
+#         )
+#         S2FLX.attrs["offsets"] = np.repeat(0.0, 24)
 
-        S2FLX = S2FLX.reset_coords(drop=True)
+#         S2FLX = S2FLX.reset_coords(drop=True)
 
-        if "spec" in S2FLX.attrs.keys():
-            del S2FLX.attrs["spec"]
-            del S2FLX.attrs["transform"]
-            del S2FLX.attrs["resolution"]
+#         if "spec" in S2FLX.attrs.keys():
+#             del S2FLX.attrs["spec"]
+#             del S2FLX.attrs["transform"]
+#             del S2FLX.attrs["resolution"]
 
-        print("Done!")
+#         print("Done!")
 
-        return S2FLX
-    else:
-        print(f"No images were found for {year}-{semester}")
+#         return S2FLX
+#     else:
+#         print(f"No images were found for {year}-{semester}")
 
 
-def sen2flux_month(coords, buffer, year):
+# def sen2flux_month(coords, buffer, year):
 
-    print(f"Resolving Bounding Box for coordinates {coords}...")
+#     print(f"Resolving Bounding Box for coordinates {coords}...")
 
-    utm_crs_list = query_utm_crs_info(
-        datum_name="WGS 84",
-        area_of_interest=AreaOfInterest(coords[0], coords[1], coords[0], coords[1]),
-    )
+#     utm_crs_list = query_utm_crs_info(
+#         datum_name="WGS 84",
+#         area_of_interest=AreaOfInterest(coords[0], coords[1], coords[0], coords[1]),
+#     )
 
-    epsg = int(utm_crs_list[0].code)
+#     epsg = int(utm_crs_list[0].code)
 
-    aoi = towerFootprint(coords[0], coords[1], buffer)
-    bbox = rasterio.features.bounds(towerFootprint(coords[0], coords[1], buffer, False))
+#     aoi = towerFootprint(coords[0], coords[1], buffer)
+#     bbox = rasterio.features.bounds(towerFootprint(coords[0], coords[1], buffer, False))
 
-    print(f"Resolving Sentinel-2 L2A for year {year}")
+#     print(f"Resolving Sentinel-2 L2A for year {year}")
 
-    CATALOG = pystac_client.Client.open(
-        "https://planetarycomputer.microsoft.com/api/stac/v1"
-    )
-    # valid_area = (1 - (0.5 * ((buffer * 2 / 10) ** 2) / (10980 ** 2))) * 100
-    valid_area = (1 - (0.5 * ((640 * 2 / 10) ** 2) / (10980**2))) * 100
+#     CATALOG = pystac_client.Client.open(
+#         "https://planetarycomputer.microsoft.com/api/stac/v1"
+#     )
+#     # valid_area = (1 - (0.5 * ((buffer * 2 / 10) ** 2) / (10980 ** 2))) * 100
+#     valid_area = (1 - (0.5 * ((640 * 2 / 10) ** 2) / (10980**2))) * 100
 
-    to_concat = []
+#     to_concat = []
 
-    print("Resolving 1st part...")
+#     print("Resolving 1st part...")
 
-    for month in [
-        "01",
-        "02",
-        "03",
-        "04",
-        "05",
-        "06",
-        "07",
-        "08",
-        "09",
-        "10",
-        "11",
-        "12",
-    ]:
+#     for month in [
+#         "01",
+#         "02",
+#         "03",
+#         "04",
+#         "05",
+#         "06",
+#         "07",
+#         "08",
+#         "09",
+#         "10",
+#         "11",
+#         "12",
+#     ]:
 
-        try:
-            S2S1 = sen2flux_core(
-                CATALOG,
-                aoi,
-                bbox,
-                valid_area,
-                f"{year}-{month}-01",
-                f"{year}-{month}-{monthrange(year,int(month))[1]}",
-                year,
-                epsg,
-            ).compute()
-            S2S1.name = "sen2flux"
-            to_concat.append(S2S1)
-        except:
-            print(f"No images found for month {year}-{month}!")
+#         try:
+#             S2S1 = sen2flux_core(
+#                 CATALOG,
+#                 aoi,
+#                 bbox,
+#                 valid_area,
+#                 f"{year}-{month}-01",
+#                 f"{year}-{month}-{monthrange(year,int(month))[1]}",
+#                 year,
+#                 epsg,
+#             ).compute()
+#             S2S1.name = "sen2flux"
+#             to_concat.append(S2S1)
+#         except:
+#             print(f"No images found for month {year}-{month}!")
 
-    print("Concatenating and adding attributes...")
+#     print("Concatenating and adding attributes...")
 
-    if len(to_concat) > 0:
-        # S2FLX = xr.concat([S2S1,S2S2],dim = "time")
+#     if len(to_concat) > 0:
+#         # S2FLX = xr.concat([S2S1,S2S2],dim = "time")
 
-        if len(to_concat) > 1:
-            S2FLX = xr.concat(
-                to_concat, dim="time", coords="minimal", compat="override"
-            )
-        else:
-            S2FLX = to_concat[0]
+#         if len(to_concat) > 1:
+#             S2FLX = xr.concat(
+#                 to_concat, dim="time", coords="minimal", compat="override"
+#             )
+#         else:
+#             S2FLX = to_concat[0]
 
-        S2FLX.attrs["crs"] = f"+init=epsg:{S2FLX.epsg.data}"
-        S2FLX.attrs["res"] = np.array([10.0, 10.0])
-        S2FLX.attrs["coords"] = np.array(coords)
-        S2FLX.attrs["xy"] = np.array(towerCoordinates(coords[0], coords[1]))
-        S2FLX.attrs["scales"] = np.concatenate(
-            (np.repeat(0.0001, 12), 1.0, np.repeat(0.0001, 9), 1.0, 1.0), axis=None
-        )
-        S2FLX.attrs["offsets"] = np.repeat(0.0, 24)
+#         S2FLX.attrs["crs"] = f"+init=epsg:{S2FLX.epsg.data}"
+#         S2FLX.attrs["res"] = np.array([10.0, 10.0])
+#         S2FLX.attrs["coords"] = np.array(coords)
+#         S2FLX.attrs["xy"] = np.array(towerCoordinates(coords[0], coords[1]))
+#         S2FLX.attrs["scales"] = np.concatenate(
+#             (np.repeat(0.0001, 12), 1.0, np.repeat(0.0001, 9), 1.0, 1.0), axis=None
+#         )
+#         S2FLX.attrs["offsets"] = np.repeat(0.0, 24)
 
-        S2FLX = S2FLX.reset_coords(drop=True)
+#         S2FLX = S2FLX.reset_coords(drop=True)
 
-        if "spec" in S2FLX.attrs.keys():
-            del S2FLX.attrs["spec"]
-            del S2FLX.attrs["transform"]
-            del S2FLX.attrs["resolution"]
+#         if "spec" in S2FLX.attrs.keys():
+#             del S2FLX.attrs["spec"]
+#             del S2FLX.attrs["transform"]
+#             del S2FLX.attrs["resolution"]
 
-        print("Done!")
+#         print("Done!")
 
-        return S2FLX
-    else:
-        print(f"No images were found for {year}")
+#         return S2FLX
+#     else:
+#         print(f"No images were found for {year}")
 
 
-def sen2flux_multi(coords, buffer, ini_year, end_year):
+# def sen2flux_multi(coords, buffer, ini_year, end_year):
 
-    years = list(range(ini_year, end_year + 1))
-    DCS = []
-    for year in years:
-        DCS.append(sen2flux(coords, buffer, year))
+#     years = list(range(ini_year, end_year + 1))
+#     DCS = []
+#     for year in years:
+#         DCS.append(sen2flux(coords, buffer, year))
 
-    S2FLX = xr.concat(DCS, dim="time")
+#     S2FLX = xr.concat(DCS, dim="time")
 
-    return S2FLX
+#     return S2FLX

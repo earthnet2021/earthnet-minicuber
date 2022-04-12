@@ -1,6 +1,7 @@
 
 
 import numpy as np
+import xarray as xr
 
 #import earthnet_minicuber
 from .provider import PROVIDERS
@@ -70,7 +71,20 @@ class Minicuber:
 
             new_x, new_y = transformer.transform(lon_grid, lat_grid)
 
-            product_cube = product_cube.interp(x = new_x, y = new_y, method = "nearest")
+            
+            product_cube_nearest = product_cube.filter_by_attrs(interpolation_type=lambda v: ((v is None) or (v == "nearest")))
+            product_cube_linear = product_cube.filter_by_attrs(interpolation_type="linear")
+            if len(product_cube_nearest) > 0:
+                product_cube_nearest = product_cube_nearest.interp(x = new_x, y = new_y, method = "nearest")
+            if len(product_cube_linear) > 0:
+                product_cube_linear = product_cube_linear.interp(x = new_x, y = new_y, method = "linear")
+            if (len(product_cube_nearest) > 0) and (len(product_cube_linear) > 0):
+                product_cube = xr.merge([product_cube_nearest, product_cube_linear])
+            elif (len(product_cube_linear) > 0):
+                product_cube = product_cube_linear
+            else:
+                product_cube = product_cube_nearest
+            
 
             product_cube["x"], product_cube["y"] = lon_grid, lat_grid
 
@@ -78,8 +92,9 @@ class Minicuber:
 
         elif ("lat" in product_cube.coords) and ("lon" in product_cube.coords):
             lon_grid, lat_grid = self.lon_lat_grid
-
-            product_cube = product_cube.interp(lon = lon_grid, lat = lat_grid, method = "nearest") # mmh here get linear interpolation where applicable...
+            product_cube_nearest = product_cube.filter_by_attrs(interpolation_type=lambda v: ((v is None) or (v == "nearest"))).interp(lon = lon_grid, lat = lat_grid, method = "nearest")
+            product_cube_linear = product_cube.filter_by_attrs(interpolation_type="linear").interp(lon = lon_grid, lat = lat_grid, method = "linear")
+            product_cube = xr.merge([product_cube_nearest, product_cube_linear])
         
         product_cube.attrs = {}
 
