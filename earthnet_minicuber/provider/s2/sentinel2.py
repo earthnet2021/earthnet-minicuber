@@ -171,4 +171,6 @@ class Sentinel2(provider_base.Provider):
             
             stack = stack.drop_vars(["epsg", "id", "id_old", "sentinel:data_coverage", "sentinel:sequence"])
 
+            stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
+
             return stack

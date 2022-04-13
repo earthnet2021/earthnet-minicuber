@@ -4,6 +4,7 @@ import os
 import pystac_client
 import stackstac
 import rasterio
+import numpy as np
 import xarray as xr
 
 from scipy.ndimage.filters import uniform_filter
@@ -112,5 +113,7 @@ class Sentinel1(provider_base.Provider):
             stack = stack.drop_vars(["epsg", "id"])
 
             stack = stack.rename({"x": "lon", "y": "lat"})
+
+            stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
 
             return stack
