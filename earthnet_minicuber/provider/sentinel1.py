@@ -73,13 +73,14 @@ class Sentinel1(provider_base.Provider):
                 for asset in item.assets:
                     item.assets[asset].extra_fields['proj:transform'] = trafo
             
+            if len(items_s1.to_dict()['features']) == 0:
+                return None
+                
             metadata = items_s1.to_dict()['features'][0]["properties"]
             epsg = metadata["proj:epsg"]
             # geotransform = metadata["proj:transform"]
 
             stack = stackstac.stack(items_s1, epsg = epsg, assets = self.bands, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 1024)
-
-            stack.attrs["epsg"] = epsg
 
             stack = stack.isel(time = [v[0] for v in stack.groupby("time.date").groups.values()])
 
@@ -115,5 +116,9 @@ class Sentinel1(provider_base.Provider):
             stack = stack.rename({"x": "lon", "y": "lat"})
 
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
+
+            stack = stack.groupby("time.date").median("time").rename({"date": "time"})
+
+            stack.attrs["epsg"] = epsg
 
             return stack
