@@ -65,7 +65,6 @@ class SRTM(provider_base.Provider):
 
             stack = stack.to_dataset("band")
 
-            stack.attrs["epsg"] = epsg
 
             if "dem" in self.bands:
                 stack["srtm_dem"].attrs = {"provider": "SRTM", "interpolation_type": "linear", "description": "Elevation data.", "units": "metre"}
@@ -79,6 +78,8 @@ class SRTM(provider_base.Provider):
             stack = stack.drop_vars(["epsg"])
 
             stack = stack.rename({"x": "lon", "y": "lat"})
+            
+            stack.attrs["epsg"] = epsg
 
             return stack
 

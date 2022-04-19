@@ -17,7 +17,7 @@ conda deactivate
 conda activate minicuber
 conda install -c conda-forge mamba
 mamba install -c conda-forge numpy scipy matplotlib cartopy seaborn netCDF4 xarray zarr dask shapely rasterio rioxarray pillow pandas shapely
-pip install pystac_client stackstac earthengine-api eemont planetary_computer folium cdsapi
+pip install pystac_client stackstac earthengine-api eemont planetary_computer folium cdsapi wxee
 ```
 
 Install this package in developing mode with

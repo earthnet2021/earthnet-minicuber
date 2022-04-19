@@ -97,6 +97,9 @@ class Sentinel2(provider_base.Provider):
                         collections=["s2_l2a"],
                         datetime=time_interval
                     ).get_all_items()
+
+            if len(items_s2.to_dict()['features']) == 0:
+                return None
             
             metadata = items_s2.to_dict()['features'][0]["properties"]
             epsg = metadata["proj:epsg"]
@@ -105,7 +108,7 @@ class Sentinel2(provider_base.Provider):
             stack = stackstac.stack(items_s2, epsg = epsg, assets = self.bands, dtype = "float32", properties = ["sentinel:data_coverage", "sentinel:sequence","sentinel:product_id"], band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 256)#.to_dataset("band")
             
             stack = stack.rename({"id": "id_old"}).rename({"sentinel:product_id": "id"})
-            
+
             stack.attrs["epsg"] = epsg
 
             if self.best_orbit_filter:
@@ -172,5 +175,9 @@ class Sentinel2(provider_base.Provider):
             stack = stack.drop_vars(["epsg", "id", "id_old", "sentinel:data_coverage", "sentinel:sequence"])
 
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
+
+            stack = stack.groupby("time.date").median("time").rename({"date": "time"})
+            
+            stack.attrs["epsg"] = epsg
 
             return stack

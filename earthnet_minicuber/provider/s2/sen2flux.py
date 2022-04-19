@@ -254,7 +254,7 @@ def computeCloudMask(aoi, arr, year):
         PCL_s2cloudless(S2_ee).map(PSL).map(PCSL).map(matchShadows).select("CLOUD_MASK")
     )
     CLOUD_MASK_xarray = CLOUD_MASK.wx.to_xarray(
-        scale=20, crs="EPSG:" + str(arr.attrs["epsg"]), region=ee_aoi
+        scale=20, crs="EPSG:" + str(arr.attrs["epsg"]), region=ee_aoi, progress = False
     )
     CLOUD_MASK_xarray = CLOUD_MASK_xarray.where(lambda x: x >= 0, other=1.0)
 

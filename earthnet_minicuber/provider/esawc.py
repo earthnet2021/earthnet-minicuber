@@ -49,7 +49,6 @@ class ESAWorldcover(provider_base.Provider):
 
             stack = stack.to_dataset("band")
 
-            stack.attrs["epsg"] = epsg
 
             if "lc" in self.bands:
                 stack["esawc_lc"].attrs = {"provider": "ESA Worldcover", "interpolation_type": "nearest", "description": "Land cover classification", "classes": """
@@ -69,6 +68,8 @@ class ESAWorldcover(provider_base.Provider):
             stack = stack.drop_vars(["epsg"])
 
             stack = stack.rename({"x": "lon", "y": "lat"})
+            
+            stack.attrs["epsg"] = epsg
 
             return stack
 
