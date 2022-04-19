@@ -125,4 +125,6 @@ dependencies:
     - urllib3==1.26.9
     - wxee==0.3.2
     - zarr==2.11.3
+    - eccodes
+    - cfgrib==1.2.0
 prefix: /srv/hops/anaconda/envs/theenv
