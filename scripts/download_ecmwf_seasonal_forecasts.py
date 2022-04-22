@@ -1,6 +1,7 @@
-
+import yaml
 import argparse
 import cdsapi
+
 
 import xarray as xr
 import numpy as np
@@ -69,38 +70,64 @@ if __name__ == "__main__":
             except:
                 pass
 
-            
-    ecmwf = xr.merge([xr.open_dataset(gribpath, chunks = {"latitude": 20, "longitude": 20, "time": 4*180}).rename({"latitude": "lat", "longitude": "lon"}) for gribpath in Path(args.outpath).glob("*.grib")])
+#    try:
+#        if Path(args.outpath+'coords.yml').exists():
+#            print("Coords YAML found!")
+#            print("Trying to load coords from YAML")
+#        with open(args.outpath+'coords.yml', 'r') as stream:
+#            coords=yaml.safe_load(stream)
+#            print(coords)
+#            print("Coords loaded from YAML")
+#    except:
+#        print("Cannot load coords from YAML. Starting xr.merge")
+    
+    for year_idx in range(len(years)):
+        print(f"Starting year {years[year_idx]}")
+        ecmwf = xr.merge([xr.open_dataset(gribpath, chunks = {"number":1,"time":1,"latitude": 20, "longitude": 20, "time": 4*180}).rename({"latitude": "lat", "longitude": "lon"}) for gribpath in Path(args.outpath).glob(f"*{years[year_idx]}_2m_temperature.grib")])
+    #        print("xr.merge finished")
+    #        print(dict(ecmwf.coords))
 
-    ds = xr.Dataset(coords = dict(ecmwf.coords))
-    ds = ds.chunk(chunks={"step":4*180, "number":1,"time": 1, "lat": 20, "lon": 20})
+    #        print("Saving coords to YAML")
+    #        with open(args.outpath+'coords.yml', 'w') as outfile:
+    #            yaml.dump(dict(ecmwf.coords), outfile, default_flow_style=False)
 
-    zarrpath = str(Path(args.outpath)/"ecmwf_africa_0d1_6hourly.zarr")
-    ds.to_zarr(zarrpath)
+        coords = dict(ecmwf.coords)
 
-    zarrgroup = zarr.open_group(zarrpath)
-    compressor = Blosc(cname='lz4', clevel=1)
+        ds = xr.Dataset(coords = coords)
+        ds = ds.chunk(chunks={"step":4*180, "number":1,"time": 1, "lat": 20, "lon": 20})
+
+        print("Creating path")
+        zarrpath = str(Path(args.outpath)/f"ecmwf_africa_{years[year_idx]}_1d0_6hourly.zarr")
+        ds.to_zarr(zarrpath)
+
+        zarrgroup = zarr.open_group(zarrpath)
+        compressor = Blosc(cname='lz4', clevel=1)
+
+        for var in list(SHORT_NAMES.keys()):
+            print(f"Creating dataset for {var}")
+            newds = zarrgroup.create_dataset(var, 
+                                             shape = (51, 12*len(years), 4*180-1, 81, 81), 
+                                             chunks = (1, 1, 4*180,20, 20), 
+                                             dtype = 'float32', 
+                                             fillvalue = np.nan,
+                                             compressor = compressor
+                                            )
+
+            newds.attrs['_ARRAY_DIMENSIONS'] = ("number","time", "step","lat", "lon")
 
     
-    for var in list(SHORT_NAMES.keys()):
-        newds = zarrgroup.create_dataset(var, 
-                                         shape = (len(ecmwf.number.values), len(ecmwf.time.values), len(ecmwf.step.values), len(ecmwf.lat.values), len(ecmwf.lon.values)), 
-                                         chunks = (1, 1, 4*180,20, 20), 
-                                         dtype = 'float32', 
-                                         fillvalue = np.nan,
-                                         compressor = compressor
-                                        )
-        
-        newds.attrs['_ARRAY_DIMENSIONS'] = ("number","time", "step","lat", "lon")
-
-    for year_idx in range(len(years)):
         for var in tqdm((SHORT_NAMES.keys())):
-            if var in subdaily_vars:
+            print(f"Creating Zarr files year {years[year_idx]} variable {var}")
+            if SHORT_NAMES[var] in subdaily_vars:
                 idxs = list(range(0,180*4-1,1))
             else:
                 idxs = list(range(-1,180*4-1,4))[1:]
-                        
+            
+            #step_mask = np.isin(np.arange(180), idxs)
             yearvar = xr.open_dataset(str(Path(args.outpath)/f"ecmwf_{years[year_idx]}_{SHORT_NAMES[var]}.grib"))
-
-            zarrgroup[var][:,year_idx*12:,year_idx*12+12,idxs,:,:] = yearvar['t2m'].values
-    
+            
+            array = np.empty((51,12,4*180,81,81))
+            array[:] = np.NaN
+            
+            array[:,year_idx*12:year_idx*12+12,idxs,:,:] = yearvar[var].values
+            zarrgroup[var] = array
