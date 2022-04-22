@@ -25,7 +25,8 @@ install_requires = [
     "stackstac",
     "wxee",
     "rioxarray",
-    "shapely"
+    "shapely",
+    "fsspec"
     ]
 
 

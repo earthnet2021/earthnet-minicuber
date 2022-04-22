@@ -75,7 +75,7 @@ if __name__ == "__main__":
     ds = xr.Dataset(coords = dict(ecmwf.coords))
     ds = ds.chunk(chunks={"step":4*180, "number":1,"time": 1, "lat": 20, "lon": 20})
 
-    zarrpath = str(Path(args.outpath)/"ecmwf_africa_0d1_6hourly.zarr")
+    zarrpath = str(Path(args.outpath)/"ecmwf_africa_1d0_6hourly.zarr")
     ds.to_zarr(zarrpath)
 
     zarrgroup = zarr.open_group(zarrpath)

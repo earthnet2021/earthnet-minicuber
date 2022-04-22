@@ -5,7 +5,7 @@ import stackstac
 import rasterio
 import xarray as xr
 import numpy as np
-
+import fsspec
 
 from . import provider_base
 
@@ -22,17 +22,20 @@ SHORT_TO_LONG_NAMES = {
 
 class ERA5(provider_base.Provider):
 
-    def __init__(self, bands = ['t2m', 'pev', 'slhf', 'ssr', 'sp', 'sshf', 'e', 'tp'], aggregation_types = ["mean", "min", "max"], zarrpath = None):
+    def __init__(self, bands = ['t2m', 'pev', 'slhf', 'ssr', 'sp', 'sshf', 'e', 'tp'], aggregation_types = ["mean", "min", "max"], zarrpath = None, zarrurl = None):
         
         self.bands = bands
         self.aggregation_types = aggregation_types
         self.zarrpath = zarrpath
-        # TODO : Instead of giving a zarrpath, hardcode access to remote zarr cube here.
-
+        self.zarrurl = zarrurl
 
     def load_data(self, bbox, time_interval):
-
-        era5 = xr.open_zarr(self.zarrpath, consolidated = False)
+        
+        # If an URL is given, loads the cloud zarr, otherwise loads from local zarrpath
+        if self.zarrurl:
+            xr.open_zarr(fsspec.get_mapper(self.zarrurl), consolidated=True)
+        elif self.zarrpath:
+            era5 = xr.open_zarr(self.zarrpath, consolidated = False)
 
         era5 = era5[self.bands]
 
