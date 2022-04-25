@@ -33,7 +33,7 @@ class ERA5(provider_base.Provider):
         
         # If an URL is given, loads the cloud zarr, otherwise loads from local zarrpath
         if self.zarrurl:
-            xr.open_zarr(fsspec.get_mapper(self.zarrurl), consolidated=True)
+            era5 = xr.open_zarr(fsspec.get_mapper(self.zarrurl), consolidated=True)
         elif self.zarrpath:
             era5 = xr.open_zarr(self.zarrpath, consolidated = False)
 
