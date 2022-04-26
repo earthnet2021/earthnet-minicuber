@@ -41,6 +41,8 @@ class ERA5(provider_base.Provider):
 
         era5 = era5.sel(lat = center_lat, lon = center_lon, method = "nearest").drop_vars(["lat", "lon"])
 
+        era5 = era5.sel(time = slice(time_interval[:10], time_interval[-10:]))
+
         agg_era5_collector = []
         for aggregation_type in self.aggregation_types:
             if aggregation_type == "mean":
@@ -61,7 +63,6 @@ class ERA5(provider_base.Provider):
         
         agg_era5 = xr.merge(agg_era5_collector)
 
-        agg_era5 = agg_era5.sel(time = slice(time_interval[:10], time_interval[-10:]))
 
         for b in self.bands:
             for a in self.aggregation_types:

@@ -29,7 +29,7 @@ import ee
 import eemont
 import numpy as np
 import pandas as pd
-# import planetary_computer as pc
+import planetary_computer as pc
 import pystac_client
 import rasterio.features
 import stackstac
@@ -42,6 +42,8 @@ from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info
 from rasterio import plot
 from .utils import *
+import requests
+import time
 
 # from dask.distributed import Client
 # from dask_gateway import GatewayCluster
@@ -98,7 +100,7 @@ from .utils import *
 #     return S2
 
 
-def sunAndViewAngles(items, ref):
+def sunAndViewAngles(items, ref, aws_bucket = "dea"):
     """Creates the Sun and Sensor View angles in degrees from the metadata.
 
     Parameters
@@ -118,12 +120,18 @@ def sunAndViewAngles(items, ref):
     idx = []
     iC = 0
     for item in items:
-        if item.properties['sentinel:product_id'] in ref.id:
+        if ((aws_bucket != "planetary_computer") and (item.properties['sentinel:product_id'] in ref.id)) or (item.id in ref.id):
+        # if item.properties['sentinel:product_id'] in ref.id:
             item.clear_links()
             try:
-                metadata_items.append(
-                    Metadata(item.assets["metadata"].href)
-                )
+                if aws_bucket == "planetary_computer":
+                    metadata_items.append(
+                        Metadata(pc.sign(item.assets["granule-metadata"].href))
+                    )
+                else:
+                    metadata_items.append(
+                        Metadata(item.assets["metadata"].href)
+                    )
                 idx.append(iC)
             except:
                 print("Skip one corrupted image!")
@@ -234,11 +242,32 @@ def computeCloudMask(aoi, arr, year):
     ee_aoi = ee.Geometry(aoi)
 
     GEE_filter = []
-
-    for x in arr.id.data:
+    if len(arr.time) == 1:
+        if "band" in arr.id.dims:
+            ids = [arr.id.isel(band=0).data[0]]
+        else:
+            ids = [str(arr.id.data)]
+    else:
+        if "band" in arr.id.dims:
+            ids = arr.id.isel(band=0).data
+        else:
+            ids = arr.id.data
+    for x in ids:
         x = x.split("_")
-        GEE_filter.append("_".join([x[2], x[5]]))
-
+        if len(x) == 7:
+            GEE_filter.append("_".join([x[2], x[5]]))
+        else:
+            GEE_filter.append("_".join([x[2], x[4]]))
+    # try:
+    #     for x in ids:
+    #         x = x.split("_")
+    #         if len(x) == 7:
+    #             GEE_filter.append("_".join([x[2], x[5]]))
+    #         else:
+    #             GEE_filter.append("_".join([x[2], x[4]]))
+    # except TypeError:
+    #     breakpoint()
+    
     def setFilter(img):
         x = img.id().split("_")
         return img.set({"PC_filter": ee.String(x.get(0)).cat("_").cat(x.get(2))})
@@ -253,17 +282,40 @@ def computeCloudMask(aoi, arr, year):
     CLOUD_MASK = (
         PCL_s2cloudless(S2_ee).map(PSL).map(PCSL).map(matchShadows).select("CLOUD_MASK")
     )
-    CLOUD_MASK_xarray = CLOUD_MASK.wx.to_xarray(
-        scale=20, crs="EPSG:" + str(arr.attrs["epsg"]), region=ee_aoi, progress = False
-    )
-    CLOUD_MASK_xarray = CLOUD_MASK_xarray.where(lambda x: x >= 0, other=1.0)
+
+    downloaded = False
+    c = 1
+    while not downloaded:
+        try:
+            CLOUD_MASK_xarray = CLOUD_MASK.wx.to_xarray(
+                scale=10, crs="EPSG:" + str(arr.attrs["epsg"]), region=ee_aoi, progress = False
+            )
+            downloaded = True
+        except requests.exceptions.HTTPError:
+            if c > 10:
+                print("No Cloud mask for Sentinel IDs:")
+                print(arr.id.data)
+                return arr
+            time.sleep(60 * c)
+            c+=1
+    
+    CLOUD_MASK_xarray = CLOUD_MASK_xarray.where(lambda x: x >= 0, other=np.nan)
 
     CLOUD_MASK = CLOUD_MASK_xarray.CLOUD_MASK.interp(
-        x=arr.x.data,
-        y=arr.y.data,
-        method="nearest",
-        kwargs={"fill_value": "extrapolate"},
-    )
+            x=arr.x.data,
+            y=arr.y.data,
+            method="nearest",
+            kwargs={"fill_value": np.nan},#"extrapolate"},
+        )
+    # try:
+    #     CLOUD_MASK = CLOUD_MASK_xarray.CLOUD_MASK.interp(
+    #         x=arr.x.data,
+    #         y=arr.y.data,
+    #         method="nearest",
+    #         kwargs={"fill_value": np.nan},#"extrapolate"},
+    #     )
+    # except AttributeError:
+    #     breakpoint()
     #CLOUD_MASK = CLOUD_MASK.resample(time="1D").max().where(lambda x: x >= 0, drop=True)
     CLOUD_MASK = CLOUD_MASK.assign_coords(band="mask").expand_dims("band")
 
@@ -278,10 +330,39 @@ def computeCloudMask(aoi, arr, year):
     # CLOUD_MASK = CLOUD_MASK.assign_coords(band_coords).transpose(
     #     "time", "band", "y", "x"
     # )
-
+    
     arr = arr.sel(time = arr.time.dt.date.isin(CLOUD_MASK.time.dt.date.values))
     CLOUD_MASK = CLOUD_MASK.sel(time = CLOUD_MASK.time.dt.date.isin(arr.time.dt.date.values))
 
+    dupls = pd.Index(arr.time).duplicated()
+    if dupls.sum() != 0:
+        arr = arr.groupby("time").median()
+    dupls = pd.Index(CLOUD_MASK.time).duplicated()
+    if dupls.sum() != 0:
+        CLOUD_MASK = CLOUD_MASK.groupby("time").median()
+    # try:
+    #     done = False
+    #     while not done:
+    #         dupls = pd.Index(arr.time).duplicated()
+    #         if dupls.sum() == 0:
+    #             done = True
+    #         else:
+    #             arr = arr.groupby("time").median()
+    #             # new_time = arr.time.values
+    #             # new_time[dupls] += np.timedelta64(1, 'm')
+    #             # arr["time"] = new_time
+    #     done = False
+    #     while not done:
+    #         dupls = pd.Index(CLOUD_MASK.time).duplicated()
+    #         if dupls.sum() == 0:
+    #             done = True
+    #         else:
+    #             CLOUD_MASK = CLOUD_MASK.groupby("time").median()
+    #             # new_time = CLOUD_MASK.time.values
+    #             # new_time[dupls] += np.timedelta64(1, 'm')
+    #             # CLOUD_MASK["time"] = new_time
+    # except ValueError:
+    #     breakpoint()
     # available_times = CLOUD_MASK.time.data
     # original_times = arr.time.data
     # tmp_times = original_times.astype("datetime64[D]").astype("datetime64[ns]")
@@ -292,7 +373,16 @@ def computeCloudMask(aoi, arr, year):
 
     # CLOUD_MASK = CLOUD_MASK.assign_coords(time=("time", arr.time.data))
 
-    s2_cloudmask = xr.concat([arr, CLOUD_MASK], dim="band")
+    s2_cloudmask = xr.concat([arr, CLOUD_MASK], dim="band", coords = "minimal", compat = "override", combine_attrs = "override")
+
+    # try:
+    #     s2_cloudmask = xr.concat([arr, CLOUD_MASK], dim="band", coords = "minimal", compat = "override", combine_attrs = "override")
+    # except IndexError:
+    #     breakpoint()
+    # except TypeError:
+    #     breakpoint()
+    # except ValueError:
+    #     breakpoint()
 
     return s2_cloudmask
 

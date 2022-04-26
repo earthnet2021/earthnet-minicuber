@@ -4,6 +4,8 @@ import pystac_client
 import stackstac
 import rasterio
 import ee
+import planetary_computer as pc
+from rasterio import RasterioIOError
 
 import numpy as np
 import xarray as xr
@@ -36,18 +38,29 @@ S2BANDS_DESCRIPTION = {
 
 class Sentinel2(provider_base.Provider):
 
-    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, brdf_correction = True, cloud_mask = True):
+    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, brdf_correction = True, cloud_mask = True, aws_bucket = "dea"):
 
         self.bands = bands
         self.best_orbit_filter = best_orbit_filter
         self.brdf_correction = brdf_correction
         self.cloud_mask = cloud_mask
+        self.aws_bucket = aws_bucket
 
-        URL = "https://explorer.digitalearth.africa/stac/"
+        if aws_bucket == "dea":
+            URL = "https://explorer.digitalearth.africa/stac/"
+            os.environ['AWS_S3_ENDPOINT'] = 's3.af-south-1.amazonaws.com'
+
+        elif aws_bucket == "planetary_computer":
+            URL = 'https://planetarycomputer.microsoft.com/api/stac/v1'
+
+        else:
+            URL = "https://earth-search.aws.element84.com/v0"
+            if 'AWS_S3_ENDPOINT' in os.environ:
+                del os.environ['AWS_S3_ENDPOINT']
+        
         self.catalog = pystac_client.Client.open(URL)
 
         os.environ['AWS_NO_SIGN_REQUEST'] = "TRUE"
-        os.environ['AWS_S3_ENDPOINT'] = 's3.af-south-1.amazonaws.com'
 
         if self.cloud_mask:
             ee.Initialize()
@@ -92,22 +105,33 @@ class Sentinel2(provider_base.Provider):
         
         with rasterio.Env(aws_unsigned = True, AWS_S3_ENDPOINT= 's3.af-south-1.amazonaws.com'):
 
-            items_s2 = self.catalog.search(
+            search = self.catalog.search(
                         bbox = bbox,
-                        collections=["s2_l2a"],
+                        collections=["s2_l2a" if self.aws_bucket == "dea" else ("sentinel-2-l2a" if self.aws_bucket == "planetary_computer" else "sentinel-s2-l2a-cogs")],
                         datetime=time_interval
-                    ).get_all_items()
+                    )
+            
+            if self.aws_bucket == "planetary_computer":
+                items_s2 = pc.sign(search)
+            else:
+                items_s2 = search.get_all_items()
 
             if len(items_s2.to_dict()['features']) == 0:
                 return None
-            
+
             metadata = items_s2.to_dict()['features'][0]["properties"]
             epsg = metadata["proj:epsg"]
-            # geotransform = metadata["proj:transform"]
 
-            stack = stackstac.stack(items_s2, epsg = epsg, assets = self.bands, dtype = "float32", properties = ["sentinel:data_coverage", "sentinel:sequence","sentinel:product_id"], band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 256)#.to_dataset("band")
+            # geotransform = metadata["proj:transform"]
+            # S2A_MSIL2A_20170427T102031_R065_T31PBT_20210209T110609
+            # S2B_MSIL2A_20171028T073009_N0001_R049_T37NGA_20191119T142732
             
-            stack = stack.rename({"id": "id_old"}).rename({"sentinel:product_id": "id"})
+
+            stack = stackstac.stack(items_s2, epsg = epsg, assets = self.bands, dtype = "float32", properties = ["sentinel:product_id"], band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 256,errors_as_nodata=(RasterioIOError('.*'), ))#.to_dataset("band") # RasterioIOError('HTTP response code: 404') RasterioIOError('* not recognized as a supported file format.')
+            if self.aws_bucket != "planetary_computer":
+                stack = stack.rename({"id": "id_old"}).rename({"sentinel:product_id": "id"})
+
+            stack = stack.drop_vars(["id_old", "sentinel:data_coverage", "sentinel:sequence"], errors = "ignore")
 
             stack.attrs["epsg"] = epsg
 
@@ -124,14 +148,13 @@ class Sentinel2(provider_base.Provider):
 
                 stack = stack.sel(time = stack.time.dt.date.isin(dates))
 
-            
             if self.brdf_correction:
 
-                stack_plus_metadata, stack = sunAndViewAngles(items_s2, stack)
+                stack_plus_metadata, stack = sunAndViewAngles(search.get_all_items(), stack, aws_bucket = self.aws_bucket)
                 
                 stack = computeNBAR(stack_plus_metadata, stack)
 
-            stack = stack.isel(time = [v[0] for v in stack.groupby("time.date").groups.values()])
+            #stack = stack.isel(time = [v[0] for v in stack.groupby("time").groups.values()])
             #stack = stack.groupby("time.date").last(skipna = False).rename({"date": "time"})
 
             if self.cloud_mask:
@@ -151,15 +174,16 @@ class Sentinel2(provider_base.Provider):
                     "coordinates": [polygon],
                 }
                 
-                if len(stack.time.values) < 10:
-                    stack = computeCloudMask(aoi, stack, stack.time.values[0].astype('datetime64[Y]').astype(int) + 1970)
+                if len(stack.time.values) < 20:
+                    stack = computeCloudMask(aoi, stack, stack.time.values.astype('datetime64[Y]').astype(int)[0] + 1970)
                 else:
                     cm_chunks = []
-                    for i in range(0, len(stack.time.values), 10):
-                        cm_chunks.append(computeCloudMask(aoi, stack.isel(time = slice(i,i+10)), stack.isel(time = i).time.values.astype('datetime64[Y]').astype(int) + 1970))
+                    for i in range(0, len(stack.time.values), 20):
+                        cm_chunks.append(computeCloudMask(aoi, stack.isel(time = slice(i,i+20)), stack.isel(time = i).time.values.astype('datetime64[Y]').astype(int) + 1970))
 
                     stack = xr.concat(cm_chunks, dim = "time")
 
+                    
             bands = stack.band.values
             stack["band"] = [f"s2_{b}" for b in stack.band.values]
 
@@ -172,12 +196,15 @@ class Sentinel2(provider_base.Provider):
                     stack[f"s2_{band}"] = (stack[f"s2_{band}"]/10000).astype("float32")
                 stack[f"s2_{band}"].attrs = self.get_attrs_for_band(band)
             
-            stack = stack.drop_vars(["epsg", "id", "id_old", "sentinel:data_coverage", "sentinel:sequence"])
-
+            stack = stack.drop_vars(["epsg", "id", "id_old", "sentinel:data_coverage", "sentinel:sequence"], errors = "ignore")
+            
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
 
             stack = stack.groupby("time.date").median("time").rename({"date": "time"})
             
             stack.attrs["epsg"] = epsg
+
+            if self.aws_bucket != "dea":
+                stack = stack.compute()
 
             return stack

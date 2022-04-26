@@ -88,10 +88,7 @@ def compute_scale_and_offset(da, n=16):
 
 class Minicuber:
 
-    def __init__(self, specs, compute = False):
-
-        self.compute = compute
-
+    def __init__(self, specs):
         self.specs = specs
 
         self.lon_lat = specs["lon_lat"]
@@ -102,6 +99,20 @@ class Minicuber:
         self.primary_provider = PROVIDERS[specs["primary_provider"]["name"]](**specs["primary_provider"]["kwargs"])
 
         self.other_providers = [PROVIDERS[p["name"]](**p["kwargs"]) for p in specs["other_providers"]]
+
+    @property
+    def monthly_intervals(self):
+        start = pd.Timestamp(self.time_interval[:10])
+        end = pd.Timestamp(self.time_interval[-10:])
+        monthly_intervals = []
+        monthstart = start
+        monthend = monthstart + pd.offsets.MonthEnd()
+        while (monthend < end-pd.Timedelta("1 days")):
+            monthly_intervals.append(monthstart.strftime('%Y-%m-%d') + "/" + monthend.strftime('%Y-%m-%d'))
+            monthstart = monthend + pd.Timedelta("1 days")
+            monthend = monthstart + pd.offsets.MonthEnd()
+        monthly_intervals.append(monthstart.strftime('%Y-%m-%d') + "/" + end.strftime('%Y-%m-%d'))
+        return monthly_intervals
 
     @property
     def bbox(self):
@@ -126,7 +137,9 @@ class Minicuber:
     @property
     def padded_bbox(self):
         left, bottom, right, top = self.bbox
-        return left - 0.01, bottom - 0.01, right + 0.01, top + 0.01
+        lat_extra = (bottom - top) / self.xy_shape[0] * 6
+        lon_extra = (right - left) / self.xy_shape[1] * 6
+        return left - lon_extra, bottom - lat_extra, right + lon_extra, top + lat_extra
 
 
     @property
@@ -189,43 +202,61 @@ class Minicuber:
         
         product_cube.attrs = {}
 
-        if self.compute:
-            return product_cube.compute()
-        else:
-            return product_cube
+        return product_cube
 
 
 
     @classmethod
     def load_minicube(cls, specs, verbose = True, compute = False):
 
-        if not verbose:
-            import warnings
-            warnings.filterwarnings('ignore')
+        #if not verbose:
+        import warnings
+        warnings.filterwarnings('ignore')
 
-        self = cls(specs, compute = compute)
+        self = cls(specs)
 
-        if verbose:
-            print(f"Loading {self.specs['primary_provider']['name']}")
-
-        product_cube = self.primary_provider.load_data(self.padded_bbox, self.time_interval)
-
-        cube = self.regrid_product_cube(product_cube)
-
-        for i, provider in enumerate(self.other_providers):
+        all_data = []
+        cube = None
+        for time_interval in self.monthly_intervals:
 
             if verbose:
-                print(f"Loading {self.specs['other_providers'][i]['name']}")
+                print(f"Loading {self.specs['primary_provider']['name']} for {time_interval}")
 
-            product_cube = provider.load_data(self.padded_bbox, self.time_interval)
+            product_cube = self.primary_provider.load_data(self.padded_bbox, time_interval)
 
             if product_cube is not None:
-                cube = xr.merge([cube, self.regrid_product_cube(product_cube)])
-            else:
+                cube = self.regrid_product_cube(product_cube)
+
+            for i, provider in enumerate(self.other_providers):
+
                 if verbose:
-                    print(f"Skipping {self.specs['other_providers'][i]['name']} - no data found.")
+                    print(f"Loading {self.specs['other_providers'][i]['name']} for {time_interval}")
+
+                product_cube = provider.load_data(self.padded_bbox, time_interval)
+
+                if product_cube is not None:
+                    if cube is None:
+                        cube = product_cube
+                    else:
+                        cube = xr.merge([cube, self.regrid_product_cube(product_cube)])
+                else:
+                    if verbose:
+                        print(f"Skipping {self.specs['other_providers'][i]['name']} for {time_interval} - no data found.")
+            
+            if cube is not None:
+                if compute:
+                    if verbose:
+                        print(f"Downloading for {time_interval}...")
+                    all_data.append(cube.compute())
+                else:
+                    all_data.append(cube)
+            cube = None
+        
+        cube = xr.merge(all_data)
 
         cube['time'] = pd.DatetimeIndex(cube['time'].values)
+
+        cube = cube.sel(time = slice(self.time_interval[:10], self.time_interval[-10:]))
 
         cube.attrs = {
             "dataset_name": "EarthNet2022 - Africa",
@@ -309,8 +340,14 @@ class Minicuber:
             except RuntimeError as err:
                 print(f"Runtime error.. {err}... skipping {pars['savepath']}")
                 done = True
-            except IndexError:
-                print(f"Index error.. skipping {pars['savepath']}")
+            except IndexError as err:
+                print(f"Index error..  {err}... skipping {pars['savepath']}")
+                done = True
+            except TypeError as err:
+                print(f"Type error.. {err}... skipping {pars['savepath']}")
+                done = True
+            except ValueError as err:
+                print(f"Value error.. {err}... skipping {pars['savepath']}")
                 done = True
             c+=1
             if c > 5:
@@ -326,11 +363,11 @@ class Minicuber:
             "lon_lat": (43.598946, 3.087414), # center pixel
             "xy_shape": (128,128), # width, height of cutout around center pixel
             "resolution": 30, # in meters.. will use this together with grid of primary provider..
-            "time_interval": "2017-04-01/2022-03-31",
+            "time_interval": "2018-01-01/2021-12-31",
             "primary_provider": {
             "name": "s2",
-            "kwargs": {"bands": ["B02", "B03", "B04", "B05", "B06", "B07", "B8A", "B09", "B11", "B12"], 
-            "best_orbit_filter": True, "brdf_correction": True, "cloud_mask": True}
+            "kwargs": {"bands": ["B02", "B03", "B04", "B05", "B06", "B07", "B8A"],#, "B09", "B11", "B12"], 
+            "best_orbit_filter": True, "brdf_correction": True, "cloud_mask": True, "aws_bucket": "element84"}
             },
             "other_providers": [
                 {
@@ -361,7 +398,7 @@ class Minicuber:
         df = pd.read_csv(csvpath)
 
         all_pars = []
-        for i in range(4,n):
+        for i in range(10,10+n):
 
             lon_lat_center = ((df.iloc[i]["MinLon"] + df.iloc[i]["MaxLon"])/2, (df.iloc[i]["MinLat"] + df.iloc[i]["MaxLat"])/2)
 
@@ -381,9 +418,9 @@ class Minicuber:
             all_pars.append(pars)
 
 
-        for pars in tqdm(all_pars):
-            cls.save_minicube_mp(pars)
+        # for pars in tqdm(all_pars):
+        #     cls.save_minicube_mp(pars)
     
-        # with ProcessPoolExecutor(max_workers=2) as pool:
+        with ProcessPoolExecutor(max_workers=10) as pool:
 
-        #     _ = list(tqdm(pool.map(cls.save_minicube_mp, all_pars),total = len(all_pars)))
+            _ = list(tqdm(pool.map(cls.save_minicube_mp, all_pars),total = len(all_pars)))

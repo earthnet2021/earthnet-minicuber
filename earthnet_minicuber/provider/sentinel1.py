@@ -82,7 +82,7 @@ class Sentinel1(provider_base.Provider):
 
             stack = stackstac.stack(items_s1, epsg = epsg, assets = self.bands, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 1024)
 
-            stack = stack.isel(time = [v[0] for v in stack.groupby("time.date").groups.values()])
+            # stack = stack.isel(time = [v[0] for v in stack.groupby("time.date").groups.values()])
 
             stack["band"] = [f"s1_{b}" for b in stack.band.values]
 
@@ -114,10 +114,10 @@ class Sentinel1(provider_base.Provider):
             stack = stack.drop_vars(["epsg", "id"])
 
             stack = stack.rename({"x": "lon", "y": "lat"})
+            
+            stack = stack.groupby("time.date").median("time").rename({"date": "time"})
 
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
-
-            stack = stack.groupby("time.date").median("time").rename({"date": "time"})
 
             stack.attrs["epsg"] = epsg
 
