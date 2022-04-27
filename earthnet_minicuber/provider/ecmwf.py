@@ -19,6 +19,8 @@ SHORT_TO_LONG_NAMES = {
     'tp': 'total_precipitation',
 }
 
+subdaily_vars = ['2m_temperature', 'mean_sea_level_pressure']
+
 class ECMWF(provider_base.Provider):
 
     def __init__(self, 
@@ -39,7 +41,7 @@ class ECMWF(provider_base.Provider):
         
         # If an URL is given, loads the cloud zarr, otherwise loads from local zarrpath
         if self.zarrurl:
-            xr.open_zarr(fsspec.get_mapper(self.zarrurl), consolidated=False)
+            xr.open_zarr(fsspec.get_mapper(self.zarrurl), consolidated=True)
         elif self.zarrpath:
             ecmwf = xr.open_zarr(self.zarrpath, consolidated = False)
 
