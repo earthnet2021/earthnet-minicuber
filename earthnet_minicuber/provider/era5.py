@@ -29,7 +29,7 @@ class ERA5(provider_base.Provider):
         self.zarrpath = zarrpath
         self.zarrurl = zarrurl
 
-    def load_data(self, bbox, time_interval):
+    def load_data(self, bbox, time_interval, **kwargs):
         
         # If an URL is given, loads the cloud zarr, otherwise loads from local zarrpath
         if self.zarrurl:
@@ -43,6 +43,8 @@ class ERA5(provider_base.Provider):
         center_lat = (bbox[1] + bbox[3])/2
 
         era5 = era5.sel(lat = center_lat, lon = center_lon, method = "nearest").drop_vars(["lat", "lon"])
+
+        era5 = era5.sel(time = slice(time_interval[:10], time_interval[-10:]))
 
         agg_era5_collector = []
         for aggregation_type in self.aggregation_types:
@@ -64,7 +66,6 @@ class ERA5(provider_base.Provider):
         
         agg_era5 = xr.merge(agg_era5_collector)
 
-        agg_era5 = agg_era5.sel(time = slice(time_interval[:10], time_interval[-10:]))
 
         for b in self.bands:
             for a in self.aggregation_types:

@@ -150,6 +150,8 @@ class Metadata:
         self.ULX = int(Geoposition.findall("ULX")[0].text)
         self.ULY = int(Geoposition.findall("ULY")[0].text)
 
+        self.epsg = int(TileGeocoding.findall("HORIZONTAL_CS_CODE")[0].text[5:])
+
         bands_dict = {
             "Sun": {"Zenith": [], "Azimuth": []},
             "0": {"Zenith": [], "Azimuth": []},
@@ -235,7 +237,7 @@ class Metadata:
             bands_names.append(names_lookup[key] + "_Zenith")
             bands_names.append(names_lookup[key] + "_Azimuth")
 
-        self.xr = xr.DataArray(
+        da = xr.DataArray(
             bands_array,
             dims=["band", "y", "x"],
             coords={
@@ -244,3 +246,10 @@ class Metadata:
                 "y": self.grid_y[0, :],
             },
         )
+
+        da_x = da.interpolate_na(dim=('x'), method='linear', fill_value = "extrapolate", use_coordinate = False)
+        da_y = da.interpolate_na(dim=('y'), method='linear', fill_value = "extrapolate", use_coordinate = False)
+
+
+        self.xr = 0.5 * da_x + 0.5 * da_y
+        #.to_dataset("band").interpolate_na(method="linear", fill_value="extrapolate").to_array("band")
