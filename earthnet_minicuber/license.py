@@ -4,7 +4,7 @@ EarthNet2022 - Africa is shared under CC-BY-NC-SA 4.0. You can understand our li
 
 CC BY-NC-SA 4.0 License
 
-Copyright (c) 2021 Max-Planck-Institute for Biogeochemistry, Vitus Benson, Jeran Poehls, Christian Requena-Mesa, Nuno Carvalhais, Markus Reichstein
+Copyright (c) 2022 Max-Planck-Institute for Biogeochemistry, Vitus Benson, Christian Requena-Mesa, Jeran Poehls, Lazaro Alonso, Claire Robin, Nuno Carvalhais, Markus Reichstein
 
 This data is licensed under CC BY-NC-SA 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-sa/4.0
 
@@ -19,6 +19,8 @@ See the full license at https://apps.ecmwf.int/datasets/licences/era5/ .
 This Dataset uses Copernicus Sentinel data (2016-2022).
 
 The access and use of Copernicus Sentinel Data and Service Information is regulated under EU law.1 In particular, the law provides that users shall have a free, full and open access to Copernicus Sentinel Data2 and Service Information without any express or implied warranty, including as regards quality and suitability for any purpose. 3 EU law grants free access to Copernicus Sentinel Data and Service Information for the purpose of the following use in so far as it is lawful4 : (a) reproduction; (b) distribution; (c) communication to the public; (d) adaptation, modification and combination with other data and information; (e) any combination of points (a) to (d). EU law allows for specific limitations of access and use in the rare cases of security concerns, protection of third party rights or risk of service disruption. By using Sentinel Data or Service Information the user acknowledges that these conditions are applicable to him/her and that the user renounces to any claims for damages against the European Union and the providers of the said Data and Information. The scope of this waiver encompasses any dispute, including contracts and torts claims, that might be filed in court, in arbitration or in any other form of dispute settlement.
+
+This Dataset uses the sen2flux Cloud mask and BRDF correction from David Montero Loaiza, Leipzig University (https://github.com/davemlz). We are grateful for his contributions. All usage of this cloud mask must first be agreed upon with the original author.
 
 This Dataset uses Esri 2020 land cover (https://www.arcgis.com/home/item.html?id=d6642f8a4f6d4685a24ae2dc0c73d4ac).
 Esri 2020 land cover was produced by Impact Observatory for Esri. © 2021 Esri. Esri 2020 land cover is available under a Creative Commons BY-4.0 license and any copy of or work based on Esri 2020 land cover requires the following attribution: Esri 2020 land cover is based on the dataset produced for the Dynamic World Project by National Geographic Society in partnership with Google and the World Resources Institute.

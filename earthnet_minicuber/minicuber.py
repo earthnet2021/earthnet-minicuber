@@ -328,12 +328,12 @@ class Minicuber:
             "xy_shape": (128,128), # width, height of cutout around center pixel
             "resolution": 30, # in meters.. will use this together with grid of primary provider..
             "time_interval": "2018-01-01/2021-12-31",
-            "primary_provider": {
-            "name": "s2",
-            "kwargs": {"bands": ["B02", "B03", "B04", "B05", "B06", "B07", "B8A"],#, "B09", "B11", "B12"], 
-            "best_orbit_filter": True, "brdf_correction": True, "cloud_mask": True, "aws_bucket": "element84"}
-            },
-            "other_providers": [
+            "providers": [
+                {
+                    "name": "s2",
+                    "kwargs": {"bands": ["B02", "B03", "B04", "B05", "B06", "B07", "B8A"],#, "B09", "B11", "B12"], 
+                    "best_orbit_filter": True, "brdf_correction": True, "cloud_mask": True, "aws_bucket": "element84"}
+                },
                 {
                     "name": "s1",
                     "kwargs": {"bands": ["vv", "vh","mask"], "speckle_filter": True, "speckle_filter_kwargs": {"type": "lee", "size": 9}} 

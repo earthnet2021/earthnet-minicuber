@@ -26,14 +26,15 @@ install_requires = [
     "wxee",
     "rioxarray",
     "shapely",
-    "fsspec"
+    "fsspec",
+    "aiohttp"
     ]
 
 
 setup(name='earthnet-minicuber', 
         version='0.0.1',
         description="EarthNet Minicuber",
-        author="Vitus Benson",
+        author="Vitus Benson, Christian Requena-Mesa",
         author_email="vbenson@bgc-jena.mpg.de",
         url="https://earthnet.tech",
         long_description=long_description,
