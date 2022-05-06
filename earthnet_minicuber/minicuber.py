@@ -96,9 +96,14 @@ class Minicuber:
         self.resolution = specs["resolution"]
         self.time_interval = specs["time_interval"]
 
-        self.primary_provider = PROVIDERS[specs["primary_provider"]["name"]](**specs["primary_provider"]["kwargs"])
+        if "primary_provider" in specs:
+            specs["providers"] =  [specs["primary_provider"]] + specs["other_providers"]
 
-        self.other_providers = [PROVIDERS[p["name"]](**p["kwargs"]) for p in specs["other_providers"]]
+        self.providers = [PROVIDERS[p["name"]](**p["kwargs"]) for p in specs["providers"]]
+
+        # self.primary_provider = PROVIDERS[specs["primary_provider"]["name"]](**specs["primary_provider"]["kwargs"])
+
+        # self.other_providers = [PROVIDERS[p["name"]](**p["kwargs"]) for p in specs["other_providers"]]
 
     @property
     def monthly_intervals(self):
@@ -107,7 +112,11 @@ class Minicuber:
         monthly_intervals = []
         monthstart = start
         monthend = monthstart + pd.offsets.MonthEnd()
-        while (monthend < end-pd.Timedelta("1 days")):
+        while (monthend < end-pd.Timedelta("15 days")):
+            if (monthend - monthstart) < pd.Timedelta("15 days"):
+                monthend = monthend + pd.Timedelta("1 days") + pd.offsets.MonthEnd()
+            if monthend > end-pd.Timedelta("15 days"):
+                break
             monthly_intervals.append(monthstart.strftime('%Y-%m-%d') + "/" + monthend.strftime('%Y-%m-%d'))
             monthstart = monthend + pd.Timedelta("1 days")
             monthend = monthstart + pd.offsets.MonthEnd()
@@ -137,7 +146,7 @@ class Minicuber:
     @property
     def padded_bbox(self):
         left, bottom, right, top = self.bbox
-        lat_extra = (bottom - top) / self.xy_shape[0] * 6
+        lat_extra = (top - bottom) / self.xy_shape[0] * 6
         lon_extra = (right - left) / self.xy_shape[1] * 6
         return left - lon_extra, bottom - lat_extra, right + lon_extra, top + lat_extra
 
@@ -219,29 +228,29 @@ class Minicuber:
         cube = None
         for time_interval in self.monthly_intervals:
 
-            if verbose:
-                print(f"Loading {self.specs['primary_provider']['name']} for {time_interval}")
+            # if verbose:
+            #     print(f"Loading {self.specs['primary_provider']['name']} for {time_interval}")
 
-            product_cube = self.primary_provider.load_data(self.padded_bbox, time_interval)
+            # product_cube = self.primary_provider.load_data(self.padded_bbox, time_interval)
 
-            if product_cube is not None:
-                cube = self.regrid_product_cube(product_cube)
+            # if product_cube is not None:
+            #     cube = self.regrid_product_cube(product_cube)
 
-            for i, provider in enumerate(self.other_providers):
+            for i, provider in enumerate(self.providers):
 
                 if verbose:
-                    print(f"Loading {self.specs['other_providers'][i]['name']} for {time_interval}")
+                    print(f"Loading {self.specs['providers'][i]['name']} for {time_interval}")
 
-                product_cube = provider.load_data(self.padded_bbox, time_interval)
+                product_cube = provider.load_data(self.padded_bbox, time_interval, full_time_interval = self.time_interval)
 
                 if product_cube is not None:
                     if cube is None:
-                        cube = product_cube
+                        cube = self.regrid_product_cube(product_cube)
                     else:
                         cube = xr.merge([cube, self.regrid_product_cube(product_cube)])
                 else:
                     if verbose:
-                        print(f"Skipping {self.specs['other_providers'][i]['name']} for {time_interval} - no data found.")
+                        print(f"Skipping {self.specs['providers'][i]['name']} for {time_interval} - no data found.")
             
             if cube is not None:
                 if compute:

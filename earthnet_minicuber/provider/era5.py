@@ -30,7 +30,7 @@ class ERA5(provider_base.Provider):
         # TODO : Instead of giving a zarrpath, hardcode access to remote zarr cube here.
 
 
-    def load_data(self, bbox, time_interval):
+    def load_data(self, bbox, time_interval, **kwargs):
 
         era5 = xr.open_zarr(self.zarrpath, consolidated = False)
 

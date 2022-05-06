@@ -24,7 +24,7 @@ class SRTM(provider_base.Provider):
         os.environ['AWS_S3_ENDPOINT'] = 's3.af-south-1.amazonaws.com'
 
 
-    def load_data(self, bbox, time_interval):
+    def load_data(self, bbox, time_interval, **kwargs):
         
         with rasterio.Env(aws_unsigned = True, AWS_S3_ENDPOINT= 's3.af-south-1.amazonaws.com'):
 

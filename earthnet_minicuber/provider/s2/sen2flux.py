@@ -37,7 +37,7 @@ import wxee
 import xarray as xr
 from .cloud_mask import *
 from .nbar import nbar
-from pyproj import CRS
+from pyproj import CRS, Transformer
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info
 from rasterio import plot
@@ -144,14 +144,29 @@ def sunAndViewAngles(items, ref, aws_bucket = "dea"):
 
     angles_array = []
     for metadata in metadata_items:
+
+        curr_metadata = metadata.xr
+        
+        if ref.epsg.values != metadata.epsg:
+
+            transformer = Transformer.from_crs(int(metadata.epsg), int(ref.epsg.values), always_xy = True)
+
+            x_grid, y_grid = metadata.xr.x.values, metadata.xr.y.values
+
+            new_x, new_y = transformer.transform(x_grid, y_grid)
+
+            curr_metadata["x"] = new_x
+            curr_metadata["y"] = new_y
+
+        
         angles_array.append(
-            metadata.xr.interp(
+            curr_metadata.interp(
                 x=ref.x.data,
                 y=ref.y.data,
                 method="linear",
                 kwargs={"fill_value": "extrapolate"},
             )
-        )
+        ) #.rio.write_nodata(np.NaN, inplace=True).rio.write_crs(f"epsg:{ref.epsg.values}", inplace=True).rio.interpolate_na(method = "linear")
 
     md = xr.concat(angles_array, dim="time")
     md = md.assign_coords(time=("time", ref.time.data))
@@ -216,6 +231,8 @@ def computeNBAR(arr, ref):
 
     return S2_NBAR_DAY
 
+def cloud_mask_reduce(x, axis = None, **kwargs):
+    return np.where((x==1).any(axis = axis), 1, np.where((x==2).any(axis = axis), 2, np.where((x==3).any(axis = axis), 3, np.where((x==0).any(axis = axis), 0, 4))))
 
 def computeCloudMask(aoi, arr, year):
     """Computes the cloud mask in GEE and stacks it to the array.
@@ -299,13 +316,13 @@ def computeCloudMask(aoi, arr, year):
             time.sleep(60 * c)
             c+=1
     
-    CLOUD_MASK_xarray = CLOUD_MASK_xarray.where(lambda x: x >= 0, other=np.nan)
+    CLOUD_MASK_xarray = CLOUD_MASK_xarray.where(lambda x: x >= 0, other=4)
 
     CLOUD_MASK = CLOUD_MASK_xarray.CLOUD_MASK.interp(
             x=arr.x.data,
             y=arr.y.data,
             method="nearest",
-            kwargs={"fill_value": np.nan},#"extrapolate"},
+            kwargs={"fill_value": 4},#"extrapolate"},
         )
     # try:
     #     CLOUD_MASK = CLOUD_MASK_xarray.CLOUD_MASK.interp(
@@ -339,7 +356,7 @@ def computeCloudMask(aoi, arr, year):
         arr = arr.groupby("time").median()
     dupls = pd.Index(CLOUD_MASK.time).duplicated()
     if dupls.sum() != 0:
-        CLOUD_MASK = CLOUD_MASK.groupby("time").median()
+        CLOUD_MASK = CLOUD_MASK.groupby("time").reduce(cloud_mask_reduce, dim = "time")#.max()
     # try:
     #     done = False
     #     while not done:

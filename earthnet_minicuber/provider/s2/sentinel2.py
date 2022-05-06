@@ -14,7 +14,7 @@ from shapely.geometry import Polygon, box
 
 #import earthnet_minicuber
 #from ..provider import Provider
-from .sen2flux import sunAndViewAngles, computeNBAR, computeCloudMask
+from .sen2flux import sunAndViewAngles, computeNBAR, computeCloudMask, cloud_mask_reduce
 from .. import provider_base
 
 S2BANDS_DESCRIPTION = {
@@ -95,13 +95,14 @@ class Sentinel2(provider_base.Provider):
             1 - cloud
             2 - cloud shadows
             3 - snow
+            4 - no valid cloud mask
             """
 
         return attrs
         
 
 
-    def load_data(self, bbox, time_interval):
+    def load_data(self, bbox, time_interval, **kwargs):
         
         with rasterio.Env(aws_unsigned = True, AWS_S3_ENDPOINT= 's3.af-south-1.amazonaws.com'):
 
@@ -136,13 +137,29 @@ class Sentinel2(provider_base.Provider):
             stack.attrs["epsg"] = epsg
 
             if self.best_orbit_filter:
+                
+                if "full_time_interval" in kwargs:
+                    full_time_interval = kwargs["full_time_interval"]
 
-                s2_poly = Polygon(items_s2.to_dict()['features'][-1]['geometry']["coordinates"][0])
+                    search_best_orbit = self.catalog.search(
+                            bbox = bbox,
+                            collections=["s2_l2a" if self.aws_bucket == "dea" else ("sentinel-2-l2a" if self.aws_bucket == "planetary_computer" else "sentinel-s2-l2a-cogs")],
+                            datetime=full_time_interval
+                        )
+
+                    if self.aws_bucket == "planetary_computer":
+                        items_s2_best_orbit = pc.sign(search_best_orbit)
+                    else:
+                        items_s2_best_orbit = search_best_orbit.get_all_items()
+                else:
+                    full_time_interval = time_interval
+                    items_s2_best_orbit = items_s2
+
                 bbox_poly = box(*bbox)
-                area_and_dates = [(bbox_poly.intersection(Polygon(f['geometry']["coordinates"][0])).area, np.datetime64(f["properties"]["datetime"][:10])) for f in items_s2.to_dict()['features']]
+                area_and_dates = [(bbox_poly.intersection(Polygon(f['geometry']["coordinates"][0])).area, np.datetime64(f["properties"]["datetime"][:10])) for f in items_s2_best_orbit.to_dict()['features']]
 
                 _, max_area_date = max(area_and_dates, key = lambda x: x[0])
-                min_date, max_date = np.datetime64(time_interval[:10]), np.datetime64(time_interval[-10:])
+                min_date, max_date = np.datetime64(full_time_interval[:10]), np.datetime64(full_time_interval[-10:])
 
                 dates = np.arange(max_area_date - ((max_area_date - min_date)//5)*5, max_date+1, 5)
 
@@ -200,7 +217,13 @@ class Sentinel2(provider_base.Provider):
             
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
 
+            if self.cloud_mask:
+                cloud_mask = stack.s2_mask.groupby("time.date").reduce(cloud_mask_reduce, dim = "time").rename({"date": "time"})
+
             stack = stack.groupby("time.date").median("time").rename({"date": "time"})
+
+            if self.cloud_mask:
+                stack["s2_mask"] = cloud_mask
             
             stack.attrs["epsg"] = epsg
 
