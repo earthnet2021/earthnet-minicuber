@@ -195,7 +195,7 @@ class Landsat(provider_base.Provider):
                 #cirrus="high_confidence",# True where there is cirrus cloud
                 "cloud_shadow":"high_confidence",# True where there is cloud shadow
                 "dilated_cloud": "dilated",
-                "nodata": True}):
+                "nodata": True}, ls_avail_var = True):
 
         self.sensor = sensor
         if cloud_mask and ("QA_PIXEL" not in bands):
@@ -206,6 +206,7 @@ class Landsat(provider_base.Provider):
         self.bands = bands
         self.cloud_mask = cloud_mask
         self.mask_kwargs = mask_kwargs
+        self.ls_avail_var = ls_avail_var
 
         URL = "https://explorer.digitalearth.africa/stac/"
         self.catalog = pystac_client.Client.open(URL)
@@ -282,6 +283,9 @@ class Landsat(provider_base.Provider):
             stack = stack.drop_vars(["epsg", "id"], errors = "ignore")
             
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
+
+            if self.ls_avail_var:
+                stack[f"{self.sensor}_avail"] = xr.DataArray(np.ones_like(stack.time.values, dtype = "uint8"), coords = {"time": stack.time.values}, dims = ("time",))
 
             stack.attrs["epsg"] = epsg
 

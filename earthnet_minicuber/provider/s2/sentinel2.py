@@ -38,13 +38,14 @@ S2BANDS_DESCRIPTION = {
 
 class Sentinel2(provider_base.Provider):
 
-    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, brdf_correction = True, cloud_mask = True, aws_bucket = "dea"):
+    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, brdf_correction = True, cloud_mask = True, aws_bucket = "dea", s2_avail_var = True):
 
         self.bands = bands
         self.best_orbit_filter = best_orbit_filter
         self.brdf_correction = brdf_correction
         self.cloud_mask = cloud_mask
         self.aws_bucket = aws_bucket
+        self.s2_avail_var = s2_avail_var
 
         if aws_bucket == "dea":
             URL = "https://explorer.digitalearth.africa/stac/"
@@ -216,6 +217,9 @@ class Sentinel2(provider_base.Provider):
             stack = stack.drop_vars(["epsg", "id", "id_old", "sentinel:data_coverage", "sentinel:sequence"], errors = "ignore")
             
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
+
+            if self.s2_avail_var:
+                stack["s2_avail"] = xr.DataArray(np.ones_like(stack.time.values, dtype = "uint8"), coords = {"time": stack.time.values}, dims = ("time",))
 
             if self.cloud_mask:
                 cloud_mask = stack.s2_mask.groupby("time.date").reduce(cloud_mask_reduce, dim = "time").rename({"date": "time"})

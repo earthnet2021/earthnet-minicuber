@@ -45,11 +45,12 @@ def get_valid_trafo_s1(item):
 
 class Sentinel1(provider_base.Provider):
 
-    def __init__(self, bands = ["vv", "vh","mask"], speckle_filter = True, speckle_filter_kwargs = {"type": "lee", "size": 9}):
+    def __init__(self, bands = ["vv", "vh","mask"], speckle_filter = True, speckle_filter_kwargs = {"type": "lee", "size": 9}, s1_avail_var = True):
 
         self.bands = bands
         self.speckle_filter = speckle_filter
         self.speckle_filter_kwargs = speckle_filter_kwargs
+        self.s1_avail_var = s1_avail_var
 
         URL = "https://explorer.digitalearth.africa/stac/"
         self.catalog = pystac_client.Client.open(URL)
@@ -118,6 +119,9 @@ class Sentinel1(provider_base.Provider):
             stack = stack.groupby("time.date").median("time").rename({"date": "time"})
 
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
+
+            if self.s1_avail_var:
+                stack["s1_avail"] = xr.DataArray(np.ones_like(stack.time.values, dtype = "uint8"), coords = {"time": stack.time.values}, dims = ("time",))
 
             stack.attrs["epsg"] = epsg
 
