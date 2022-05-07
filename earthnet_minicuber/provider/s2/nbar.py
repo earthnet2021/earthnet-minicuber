@@ -236,66 +236,25 @@ def nbar(x):
     bands_idxs = [i for i, b in enumerate(["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B11", "B12"]) if b in bands]
 
     bands_interim = [f"{b}_Interim" for b in bands]
-    # [
-    #     "B02_Interim",
-    #     "B03_Interim",
-    #     "B04_Interim",
-    #     "B05_Interim",
-    #     "B06_Interim",
-    #     "B07_Interim",
-    #     "B08_Interim",
-    #     "B11_Interim",
-    #     "B12_Interim",
-    # ]
 
     bands_nbar = [f"{b}_NBAR" for b in bands]
-    # [
-    #     "B02_NBAR",
-    #     "B03_NBAR",
-    #     "B04_NBAR",
-    #     "B05_NBAR",
-    #     "B06_NBAR",
-    #     "B07_NBAR",
-    #     "B08_NBAR",
-    #     "B11_NBAR",
-    #     "B12_NBAR",
-    # ]
+
 
     SunAzimuth = x.sel(band="Sun_Azimuth")
     SunZenith = x.sel(band="Sun_Zenith")
 
     reflectance = x.sel(
-        band=bands#["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B11", "B12"]
+        band=bands
     )
 
     reflectance = reflectance.assign_coords(band=("band", bands_interim)) / 10000
 
     ViewAzimuth = x.sel(
-        band= [f"{b}_Azimuth" for b in bands]#[
-        #     "B02_Azimuth",
-        #     "B03_Azimuth",
-        #     "B04_Azimuth",
-        #     "B05_Azimuth",
-        #     "B06_Azimuth",
-        #     "B07_Azimuth",
-        #     "B08_Azimuth",
-        #     "B11_Azimuth",
-        #     "B12_Azimuth",
-        # ]
+        band= [f"{b}_Azimuth" for b in bands]
     )
 
     ViewZenith = x.sel(
-        band= [f"{b}_Zenith" for b in bands]#[
-        #     "B02_Zenith",
-        #     "B03_Zenith",
-        #     "B04_Zenith",
-        #     "B05_Zenith",
-        #     "B06_Zenith",
-        #     "B07_Zenith",
-        #     "B08_Zenith",
-        #     "B11_Zenith",
-        #     "B12_Zenith",
-        # ]
+        band= [f"{b}_Zenith" for b in bands]
     )
 
     DeltaAzimuth = xr.concat(
@@ -313,7 +272,5 @@ def nbar(x):
     fvol = [[0.0372, 0.0580, 0.0574, 0.0845, 0.1003, 0.1197, 0.1535, 0.1154, 0.0639][i] for i in bands_idxs]
 
     nbar = c_factor(fiso, fvol, fgeo, theta, vartheta, phi) * reflectance
-
-    # nbar.attrs["correction"] = "nbar"
 
     return nbar.assign_coords(band=("band", bands_nbar))

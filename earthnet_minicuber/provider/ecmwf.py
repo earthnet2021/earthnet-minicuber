@@ -57,35 +57,35 @@ class ECMWF(provider_base.Provider):
 #         for leadtime_month in leadtime_months:
 #             #WIP
             
-            for daily_aggregation_type in self.daily_aggregation_types:
-                if daily_aggregation_type == "mean":
-                    curr_agg_ecmwf = ecmwf.groupby("step.date").mean("step").rename({"date": "time"})
-                elif daily_aggregation_type == "min":
-                    curr_agg_ecmwf = ecmwf.groupby("step.date").min("step").rename({"date": "time"})
-                elif daily_aggregation_type == "max":
-                    curr_agg_ecmwf = ecmwf.groupby("step.date").max("step").rename({"date": "time"})
-                elif daily_aggregation_type == "median":
-                    curr_agg_ecmwf = ecmwf.groupby("step.date").median("step").rename({"date": "time"})
-                elif daily_aggregation_type == "std":
-                    curr_agg_ecmwf = ecmwf.groupby("step.date").std("step").rename({"date": "time"})
-                else:
-                    continue
-                curr_agg_ecmwf["step"] = np.array([str(d) for d in curr_agg_ecmwf.step.values], dtype="datetime64[D]")
-                curr_agg_ecmwf = curr_agg_ecmwf.rename({b: f"ecmwf_{b}_{daily_aggregation_type}" for b in self.bands})
-                agg_ecmwf_collector.append(curr_agg_ecmwf)
+        for daily_aggregation_type in self.daily_aggregation_types:
+            if daily_aggregation_type == "mean":
+                curr_agg_ecmwf = ecmwf.groupby("step.date").mean("step").rename({"date": "time"})
+            elif daily_aggregation_type == "min":
+                curr_agg_ecmwf = ecmwf.groupby("step.date").min("step").rename({"date": "time"})
+            elif daily_aggregation_type == "max":
+                curr_agg_ecmwf = ecmwf.groupby("step.date").max("step").rename({"date": "time"})
+            elif daily_aggregation_type == "median":
+                curr_agg_ecmwf = ecmwf.groupby("step.date").median("step").rename({"date": "time"})
+            elif daily_aggregation_type == "std":
+                curr_agg_ecmwf = ecmwf.groupby("step.date").std("step").rename({"date": "time"})
+            else:
+                continue
+            curr_agg_ecmwf["step"] = np.array([str(d) for d in curr_agg_ecmwf.step.values], dtype="datetime64[D]")
+            curr_agg_ecmwf = curr_agg_ecmwf.rename({b: f"ecmwf_{b}_{daily_aggregation_type}" for b in self.bands})
+            agg_ecmwf_collector.append(curr_agg_ecmwf)
 
-            agg_ecmwf = xr.merge(agg_ecmwf_collector)
+        agg_ecmwf = xr.merge(agg_ecmwf_collector)
 
-            agg_ecmwf = agg_ecmwf.sel(time = slice(time_interval[:10], time_interval[-10:]))
+        agg_ecmwf = agg_ecmwf.sel(time = slice(time_interval[:10], time_interval[-10:]))
 
-            for b in self.bands:
-                for a in self.aggregation_types:
+        for b in self.bands:
+            for a in self.aggregation_types:
 
-                    agg_ecmwf[f"ecmwf_{b}_{a}"].attrs = {
-                        "provider": "ECMFWF seasonal weather forecasts",
-                        "interpolation_type": "linear",
-                        "description": f"{SHORT_TO_LONG_NAMES[b]} 3-hourly data aggregated by {a}"
-                    }
-        
+                agg_ecmwf[f"ecmwf_{b}_{a}"].attrs = {
+                    "provider": "ECMFWF seasonal weather forecasts",
+                    "interpolation_type": "linear",
+                    "description": f"{SHORT_TO_LONG_NAMES[b]} 3-hourly data aggregated by {a}"
+                }
+    
 
         return agg_ecmwf

@@ -4,9 +4,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-#import earthnet_minicuber
-from .provider import PROVIDERS
-from .license import LICENSE
 from pyproj import Transformer
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info
@@ -16,13 +13,15 @@ from pathlib import Path
 import pystac_client
 import rasterio
 import time
+import warnings
 
 from copy import deepcopy
 
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 
-#PROVIDERS = {}#provider.PROVIDERS
+from .provider import PROVIDERS
+from .license import LICENSE
 
 def compute_scale_and_offset(da, n=16):
     """Calculate offset and scale factor for int conversion
@@ -56,9 +55,6 @@ class Minicuber:
 
         self.providers = [PROVIDERS[p["name"]](**p["kwargs"]) for p in specs["providers"]]
 
-        # self.primary_provider = PROVIDERS[specs["primary_provider"]["name"]](**specs["primary_provider"]["kwargs"])
-
-        # self.other_providers = [PROVIDERS[p["name"]](**p["kwargs"]) for p in specs["other_providers"]]
 
     @property
     def monthly_intervals(self):
@@ -173,23 +169,16 @@ class Minicuber:
     @classmethod
     def load_minicube(cls, specs, verbose = True, compute = False):
 
-        #if not verbose:
-        import warnings
-        warnings.filterwarnings('ignore')
-
         self = cls(specs)
+
+        if not compute and (len(self.monthly_intervals) > 3):
+            warnings.warn("You are querying a long time interval with compute = False, this might lead to failure in the dask sheduler and high memory consumption upon calling .compute(). Consider using compute = True instead.")
+
+        warnings.filterwarnings('ignore')
 
         all_data = []
         cube = None
         for time_interval in self.monthly_intervals:
-
-            # if verbose:
-            #     print(f"Loading {self.specs['primary_provider']['name']} for {time_interval}")
-
-            # product_cube = self.primary_provider.load_data(self.padded_bbox, time_interval)
-
-            # if product_cube is not None:
-            #     cube = self.regrid_product_cube(product_cube)
 
             for i, provider in enumerate(self.providers):
 
@@ -225,7 +214,7 @@ class Minicuber:
         cube.attrs = {
             "dataset_name": "EarthNet2022 - Africa",
             "dataset_name_short": "en22",
-            "dataset_version": "v0.2",
+            "dataset_version": "v0.3",
             "description": "This is a minicube from the EarthNet2022 - Africa dataset, created within the context of the DeepCube Project. For more see https://www.earthnet.tech/ and https://deepcube-h2020.eu/.",
             "license": LICENSE,
             "provided_by": "Max-Planck-Institute for Biogeochemistry"
@@ -240,16 +229,14 @@ class Minicuber:
 
         savepath = Path(savepath)
 
-        #encoding = {v: {"zlib": True, "complevel": 9} for v in list(minicube.variables)}
-
         encoding = {}
         for v in list(minicube.variables):
             if v in ["time", "time_clim"]:
                 continue
-            elif v.startswith("pq") or v in ["QA_PIXEL", "SCL", "mask"]:
-                scale_factor, add_offset = 1.0, 0.0
-            else:
+            elif minicube[v].attrs["interpolation_type"] == "linear":
                 scale_factor, add_offset = compute_scale_and_offset(minicube[v])
+            else:
+                scale_factor, add_offset = 1.0, 0.0
 
             if abs(scale_factor) < 1e-8:
                 encoding[v] = {"zlib": True, "complevel": 9}
@@ -358,6 +345,19 @@ class Minicuber:
                         "zarrpath": "/Net/Groups/BGI/scratch/DeepCube/UC1/era5_africa/era5_africa_0d1_3hourly.zarr",
                         "zarrurl": "https://storage.de.cloud.ovh.net/v1/AUTH_84d6da8e37fe4bb5aea18902da8c1170/uc1-africa/era5_africa_0d1_3hourly.zarr",
                     }
+                },
+                {
+                    "name": "sg",
+                    "kwargs": {
+                        "vars": ["bdod", "cec", "cfvo", "clay", "nitrogen", "phh2o", "ocd", "sand", "silt", "soc"],
+                        "depths": {"0-30cm": ["0-5cm", "5-15cm", "15-30cm"], "30-200cm": ["30-60cm", "60-100cm", "100-200cm"]}, 
+                        "vals": ["mean"],
+                        "dirpath": "/Net/Groups/BGI/work_2/Landscapes_dynamics/downloads/soilgrids/Africa/"
+                    }
+                },
+                {
+                    "name": "geom",
+                    "kwargs": {"filepath": "/Net/Groups/BGI/work_2/Landscapes_dynamics/downloads/Geomorphons/geom/geom_90M_africa_europe.tif"}
                 }
                 ]
         }
