@@ -358,6 +358,14 @@ class Minicuber:
                 {
                     "name": "geom",
                     "kwargs": {"filepath": "/Net/Groups/BGI/work_2/Landscapes_dynamics/downloads/Geomorphons/geom/geom_90M_africa_europe.tif"}
+                },
+                {
+                    "name": "alos",
+                    "kwargs": {}
+                },
+                {
+                    "name": "cop",
+                    "kwargs": {}
                 }
                 ]
         }
