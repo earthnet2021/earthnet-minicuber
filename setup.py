@@ -27,7 +27,8 @@ install_requires = [
     "rioxarray",
     "shapely",
     "fsspec",
-    "aiohttp"
+    "aiohttp",
+    "odc-algo"
     ]
 
 
