@@ -39,6 +39,8 @@ S2BANDS_DESCRIPTION = {
 class Sentinel2(provider_base.Provider):
 
     def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, brdf_correction = True, cloud_mask = True, aws_bucket = "dea", s2_avail_var = True):
+        
+        self.is_temporal = True
 
         self.bands = bands
         self.best_orbit_filter = best_orbit_filter

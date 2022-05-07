@@ -47,6 +47,8 @@ class Sentinel1(provider_base.Provider):
 
     def __init__(self, bands = ["vv", "vh","mask"], speckle_filter = True, speckle_filter_kwargs = {"type": "lee", "size": 9}, s1_avail_var = True):
 
+        self.is_temporal = True
+
         self.bands = bands
         self.speckle_filter = speckle_filter
         self.speckle_filter_kwargs = speckle_filter_kwargs

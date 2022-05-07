@@ -31,6 +31,7 @@ class ECMWF(provider_base.Provider):
                  ensemble_aggregation = ["mean","median","min", "max"], 
                  zarrpath = None, 
                  zarrurl = None):
+        self.is_temporal = True
         
         self.bands = bands
         self.aggregation_types = aggregation_types

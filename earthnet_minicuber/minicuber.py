@@ -55,6 +55,9 @@ class Minicuber:
 
         self.providers = [PROVIDERS[p["name"]](**p["kwargs"]) for p in specs["providers"]]
 
+        self.temporal_providers = [p for p in self.providers if p.is_temporal]
+        self.spatial_providers = [p for p in self.providers if not p.is_temporal]
+
 
     @property
     def monthly_intervals(self):
@@ -180,10 +183,10 @@ class Minicuber:
         cube = None
         for time_interval in self.monthly_intervals:
 
-            for i, provider in enumerate(self.providers):
+            for provider in self.temporal_providers:
 
                 if verbose:
-                    print(f"Loading {self.specs['providers'][i]['name']} for {time_interval}")
+                    print(f"Loading {provider.__class__.__name__} for {time_interval}")
 
                 product_cube = provider.load_data(self.padded_bbox, time_interval, full_time_interval = self.time_interval)
 
@@ -194,7 +197,7 @@ class Minicuber:
                         cube = xr.merge([cube, self.regrid_product_cube(product_cube)])
                 else:
                     if verbose:
-                        print(f"Skipping {self.specs['providers'][i]['name']} for {time_interval} - no data found.")
+                        print(f"Skipping {provider.__class__.__name__} for {time_interval} - no data found.")
             
             if cube is not None:
                 if compute:
@@ -206,6 +209,21 @@ class Minicuber:
             cube = None
         
         cube = xr.merge(all_data)
+
+        for provider in self.spatial_providers:
+            if verbose:
+                print(f"Loading {provider.__class__.__name__}")
+            product_cube = provider.load_data(self.padded_bbox, "not_needed")
+            if product_cube is not None:
+                if cube is None:
+                    cube = self.regrid_product_cube(product_cube)
+                else:
+                    cube = xr.merge([cube, self.regrid_product_cube(product_cube)])
+            else:
+                if verbose:
+                    print(f"Skipping {provider.__class__.__name__} - no data found.")
+        
+            
 
         cube['time'] = pd.DatetimeIndex(cube['time'].values)
 

@@ -196,7 +196,8 @@ class Landsat(provider_base.Provider):
                 "cloud_shadow":"high_confidence",# True where there is cloud shadow
                 "dilated_cloud": "dilated",
                 "nodata": True}, ls_avail_var = True):
-
+        self.is_temporal = True
+        
         self.sensor = sensor
         if cloud_mask and ("QA_PIXEL" not in bands):
             bands.append("QA_PIXEL")

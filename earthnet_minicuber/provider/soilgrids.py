@@ -40,6 +40,8 @@ class Soilgrids(provider_base.Provider):
         }
 
     def __init__(self, vars = ["bdod", "cec", "cfvo", "clay", "nitrogen", "phh2o", "ocd", "sand", "silt", "soc"], depths = {"0-30cm": ["0-5cm", "5-15cm", "15-30cm"], "30-200cm": ["30-60cm", "60-100cm", "100-200cm"]}, vals = ["mean", "uncertainty", "Q0.05", "Q0.5", "Q0.95"], dirpath = None):
+
+        self.is_temporal = False
         
         self.vars = vars
         if isinstance(depths, list):

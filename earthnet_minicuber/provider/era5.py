@@ -23,6 +23,7 @@ SHORT_TO_LONG_NAMES = {
 class ERA5(provider_base.Provider):
 
     def __init__(self, bands = ['t2m', 'pev', 'slhf', 'ssr', 'sp', 'sshf', 'e', 'tp'], aggregation_types = ["mean", "min", "max"], zarrpath = None, zarrurl = None):
+        self.is_temporal = True
         
         self.bands = bands
         self.aggregation_types = aggregation_types

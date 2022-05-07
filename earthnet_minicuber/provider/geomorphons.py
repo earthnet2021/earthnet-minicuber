@@ -16,7 +16,7 @@ from . import provider_base
 class Geomorphons(provider_base.Provider):
 
     def __init__(self, filepath):
-        
+        self.is_temporal = False
         self.filepath = filepath
 
     def load_data(self, bbox, time_interval, **kwargs):

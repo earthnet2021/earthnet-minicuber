@@ -13,7 +13,8 @@ from . import provider_base
 class NDVIClim(provider_base.Provider):
 
     def __init__(self, bands = ["mean", "std", "count"]):
-
+        self.is_temporal = False
+        
         self.bands = bands
 
         URL = "https://explorer.digitalearth.africa/stac/"

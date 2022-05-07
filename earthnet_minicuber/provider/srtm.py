@@ -14,6 +14,8 @@ class SRTM(provider_base.Provider):
 
     def __init__(self, bands = ["dem"]):#, "mrrtf", "mrvbf", "slope"]):
         
+        self.is_temporal = False
+
         # TODO: Fix srtm_deriv bands.. these are not in lat-lon but some weird other projection..
         self.bands = bands
 

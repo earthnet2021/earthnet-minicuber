@@ -14,6 +14,8 @@ from . import provider_base
 class ALOSWorld(provider_base.Provider):
 
     def __init__(self):#, "mrrtf", "mrvbf", "slope"]):
+
+        self.is_temporal = False
         
         URL = "https://planetarycomputer.microsoft.com/api/stac/v1/"
         self.catalog = pystac_client.Client.open(URL)
