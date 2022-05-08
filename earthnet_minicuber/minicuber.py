@@ -14,6 +14,8 @@ import pystac_client
 import rasterio
 import time
 import warnings
+import traceback
+
 
 from copy import deepcopy
 
@@ -251,7 +253,7 @@ class Minicuber:
         for v in list(minicube.variables):
             if v in ["time", "time_clim"]:
                 continue
-            elif minicube[v].attrs["interpolation_type"] == "linear":
+            elif ("interpolation_type" in minicube[v].attrs) and (minicube[v].attrs["interpolation_type"] == "linear"):
                 scale_factor, add_offset = compute_scale_and_offset(minicube[v])
             else:
                 scale_factor, add_offset = 1.0, 0.0
@@ -304,18 +306,23 @@ class Minicuber:
                 time.sleep(10)
                 cls.save_minicube(**pars)
             except rasterio._err.CPLE_OpenFailedError as err:
+                traceback.print_exc()
                 print(f"Cant read file.. {err}... skipping {pars['savepath']}")
                 done = True
             except RuntimeError as err:
+                traceback.print_exc()
                 print(f"Runtime error.. {err}... skipping {pars['savepath']}")
                 done = True
             except IndexError as err:
+                traceback.print_exc()
                 print(f"Index error..  {err}... skipping {pars['savepath']}")
                 done = True
             except TypeError as err:
+                traceback.print_exc()
                 print(f"Type error.. {err}... skipping {pars['savepath']}")
                 done = True
             except ValueError as err:
+                traceback.print_exc()
                 print(f"Value error.. {err}... skipping {pars['savepath']}")
                 done = True
             c+=1
@@ -368,7 +375,7 @@ class Minicuber:
                     "name": "sg",
                     "kwargs": {
                         "vars": ["bdod", "cec", "cfvo", "clay", "nitrogen", "phh2o", "ocd", "sand", "silt", "soc"],
-                        "depths": {"0-30cm": ["0-5cm", "5-15cm", "15-30cm"], "30-200cm": ["30-60cm", "60-100cm", "100-200cm"]}, 
+                        "depths": {"top": ["0-5cm", "5-15cm", "15-30cm"], "sub": ["30-60cm", "60-100cm", "100-200cm"]}, 
                         "vals": ["mean"],
                         "dirpath": "/Net/Groups/BGI/work_2/Landscapes_dynamics/downloads/soilgrids/Africa/"
                     }

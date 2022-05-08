@@ -23,7 +23,7 @@ def construct_soilgrid_layer(var, depth, val):
 
 def download_layer(layer):
 
-    #print(f"Doing {tile}, {layer}")
+    print(f"Doing {layer}")
 
     # the destination file 
     datapath = Path('/Net/Groups/BGI/work_2/Landscapes_dynamics/downloads/soilgrids/Africa')
@@ -61,7 +61,7 @@ def download_layer(layer):
 
                 with WarpedVRT(src, crs=4326, resampling=Resampling.nearest) as vrt:
 
-                    dst_window = vrt.window(-40, -25, 40, 55)
+                    dst_window = vrt.window(-25, -40, 55, 40)
 
                     kwds['transform'] = vrt.window_transform(dst_window)
 
@@ -97,12 +97,12 @@ if __name__ == "__main__":
     # for tile_layer in tqdm(tiles_layers):
     #     download_tile_layer(tile_layer)
 
-    for layer in tqdm(layers):
-        print(f"Starting {layer}")
-        download_layer(layer)
+    # for layer in tqdm(layers):
+    #     print(f"Starting {layer}")
+    #     download_layer(layer)
 
-    # with ProcessPoolExecutor(max_workers=4) as pool:
-    #     _ = list(tqdm(pool.map(download_layer, layers), total = len(layers)))
+    with ProcessPoolExecutor(max_workers=4) as pool:
+        _ = list(tqdm(pool.map(download_layer, layers), total = len(layers)))
 
     # with ThreadPoolExecutor(max_workers=38) as pool:
     #     _ = list(tqdm(pool.map(download_tile_layer, tiles_layers), total = len(tiles_layers)))

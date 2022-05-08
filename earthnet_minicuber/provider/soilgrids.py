@@ -8,6 +8,7 @@ import rasterio
 from rasterio.vrt import WarpedVRT
 from rasterio.enums import Resampling
 from pathlib import Path
+import traceback
 
 from . import provider_base
 
@@ -64,14 +65,24 @@ class Soilgrids(provider_base.Provider):
         if self.dirpath is not None:
             filepath = self.dirpath/f"sg_africa_{var}_{depth}_{val}.tif"
             if filepath.is_file():
-                da = rioxr.open_rasterio(filepath)
-                da = da.rename({"x": "lon", "y": "lat"})
-                da = da.sel(x = slice(bbox[0], bbox[2]), y = slice(bbox[3], bbox[1])).isel(band = 0).drop_vars(["band"], errors = "ignore")
-                da = da.astype("float32")
+                try:
+                    da = rioxr.open_rasterio(filepath)
+                    da = da.sel(x = slice(bbox[0], bbox[2]), y = slice(bbox[3], bbox[1]))
+                    da = da.isel(band = 0).drop_vars(["band"], errors = "ignore")
+                    da = da.rename({"x": "lon", "y": "lat"})
+                    
+                    da = da.astype("float32")
 
-                da = da.where(lambda x: x != -32768.0)
+                    da = da.where(lambda x: x != -32768.0)
 
-                return da.rename(f"sg_{var}_{depth}_{val}")
+                    return da.rename(f"sg_{var}_{depth}_{val}")
+                except:
+                    traceback.print_exc()
+                    try:
+                        print(da)
+                    except:
+                        print("Failed at opening soilgrids fron {filepath}")
+                    print(f"Loading soilgrids fron {filepath} is not working, trying internet instead.")
         
         sg_url = self.construct_url(var, depth, val)
 
@@ -125,8 +136,10 @@ class Soilgrids(provider_base.Provider):
 
                         if curr_arrays is None:
                             curr_arrays = curr_arr
+                            if len(arrays) > 0:
+                                curr_arrays = curr_arrays.interp_like(arrays[0], method = "linear", kwargs={"fill_value": "extrapolate"})
                         else:
-                            curr_arrays += curr_arr
+                            curr_arrays += curr_arr.interp_like(curr_arrays, method = "linear", kwargs={"fill_value": "extrapolate"})
 
                     curr_arrays /= total
 
@@ -138,7 +151,7 @@ class Soilgrids(provider_base.Provider):
 
         for var in stack.data_vars:
             sgvar, depth, val = var.split("_")[1:]
-            stack[var].attrs = {"provider": "Soilgrids", "interpolation_type": "nearest", "description": self.SOILGRID_DESCS[sgvar] + f". Prediction value: {val}. Depth: {depth}."}
+            stack[var].attrs = {"provider": "Soilgrids", "interpolation_type": "linear", "description": self.SOILGRID_DESCS[sgvar] + f". Prediction value: {val}. Aggregated depth: {depth}, from original depths: {*self.depths[depth],}."}
                     
         stack.attrs["epsg"] = 4326
 
