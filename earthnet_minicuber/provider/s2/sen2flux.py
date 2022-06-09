@@ -44,6 +44,8 @@ from rasterio import plot
 from .utils import *
 import requests
 import time
+import random
+import shutil
 
 
 def sunAndViewAngles(items, ref, aws_bucket = "dea"):
@@ -206,20 +208,26 @@ def computeCloudMask(aoi, arr, year):
         PCL_s2cloudless(S2_ee).map(PSL).map(PCSL).map(matchShadows).select("CLOUD_MASK")
     )
 
-    downloaded = False
-    c = 1
-    while not downloaded:
+    for attempt in range(30):
         try:
             CLOUD_MASK_xarray = CLOUD_MASK.wx.to_xarray(
-                scale=10, crs="EPSG:" + str(arr.attrs["epsg"]), region=ee_aoi, progress = False
+                scale=10, crs="EPSG:" + str(arr.attrs["epsg"]), region=ee_aoi, progress = False,num_cores = 2,max_attempts=2
             )
-            downloaded = True
-        except requests.exceptions.HTTPError:
-            if c > 10:
-                print(f"No Cloud mask for Sentinel IDs: {arr.id.data}")
-                return arr
-            time.sleep(60 * c)
-            c+=1
+        except (requests.exceptions.HTTPError, ee.ee_exception.EEException):
+            sleeptime = random.uniform(10,60)
+            print(f"Earth engine overload... sleeping {sleeptime:.2f} sec. AOI: {aoi['coordinates'][0][0]}")
+            time.sleep(sleeptime)
+        except OSError as err:
+            try:
+                shutil.rmtree(str(err).split(" ")[-1])
+            except:
+                print(err, str(err).split(" ")[-1])
+            time.sleep(random.uniform(0,4))
+        else:
+            break
+    else:
+        print(f"No Cloud mask for Sentinel IDs: {arr.id.data}")
+        return arr
     
     CLOUD_MASK_xarray = CLOUD_MASK_xarray.where(lambda x: x >= 0, other=4)
 

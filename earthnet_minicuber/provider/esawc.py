@@ -36,6 +36,9 @@ class ESAWorldcover(provider_base.Provider):
                     collections=["esa_worldcover"]
                 ).get_all_items()
 
+            if len(items_esawc.to_dict()['features']) == 0:
+                return None
+
             metadata = items_esawc.to_dict()['features'][0]["properties"]
             epsg = metadata["proj:epsg"]
 

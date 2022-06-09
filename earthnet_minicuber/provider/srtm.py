@@ -38,6 +38,9 @@ class SRTM(provider_base.Provider):
                     collections=["dem_srtm"]
                 ).get_all_items()
 
+            if len(items_srtm.to_dict()['features']) == 0:
+                return None
+
             metadata = items_srtm.to_dict()['features'][0]["properties"]
             epsg = metadata["proj:epsg"]
 
