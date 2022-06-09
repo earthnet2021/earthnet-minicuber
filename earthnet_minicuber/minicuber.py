@@ -15,11 +15,11 @@ import rasterio
 import time
 import warnings
 import traceback
-
+import random
 
 from copy import deepcopy
 
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from tqdm import tqdm
 
 from .provider import PROVIDERS
@@ -251,13 +251,13 @@ class Minicuber:
 
         encoding = {}
         for v in list(minicube.variables):
-            if v in ["time", "time_clim"]:
+            if v in ["time", "time_clim", "lat", "lon"]:
                 continue
-            elif ("interpolation_type" in minicube[v].attrs) and (minicube[v].attrs["interpolation_type"] == "linear"):
-                scale_factor, add_offset = compute_scale_and_offset(minicube[v])
-            else:
+            elif ("interpolation_type" in minicube[v].attrs) and (minicube[v].attrs["interpolation_type"] == "nearest"):
                 scale_factor, add_offset = 1.0, 0.0
-
+            else:
+                scale_factor, add_offset = compute_scale_and_offset(minicube[v].values)
+                
             if abs(scale_factor) < 1e-8:
                 encoding[v] = {"zlib": True, "complevel": 9}
             else:
@@ -296,6 +296,7 @@ class Minicuber:
     @classmethod
     def save_minicube_mp(cls, pars):
         starttime = time.time()
+        time.sleep(random.uniform(0,2))
         done = False
         c = 0
         while not done:
@@ -325,16 +326,22 @@ class Minicuber:
                 traceback.print_exc()
                 print(f"Value error.. {err}... skipping {pars['savepath']}")
                 done = True
+            except KeyboardInterrupt:
+                return
+            except Exception as err:
+                traceback.print_exc()
+                print(f"Unknown exception.. {err}... skipping {pars['savepath']}")
+                done = True
             c+=1
             if c > 5:
                 done = True
                 print(f"Pystac connection error.. skipping {pars['savepath']}")
         print(f"{pars['savepath']} took {time.time()-starttime:.2f} seconds.")
 
-    
+    #/Net/Groups/BGI/people/vbenson/EarthNet/earthnet-minicuber/scripts$ python create_en22.py --savepath /Net/Groups/BGI/scratch/DeepCube/UC1/minicubes_v03 --csvpath /Net/Groups/BGI/scratch/DeepCube/UC1/sampled_minicubes.csv --n 1000 --numcores 64
     @classmethod
     def create_minicubes_from_dataframe(cls, savepath, csvpath, n = 10, numcores = 8, basespecs = None):
-        
+        starttime = time.time()
         if not basespecs:
             basespecs = {
                 "lon_lat": (43.598946, 3.087414), # center pixel
@@ -393,15 +400,15 @@ class Minicuber:
                         "name": "cop",
                         "kwargs": {}
                     }
-                    ]
-            }
+                ]
+        }
 
         savepath = Path(savepath)
 
         df = pd.read_csv(csvpath)
 
         all_pars = []
-        for i in range(10,10+n):
+        for i in range(1000, 1000+n):
 
             lon_lat_center = ((df.iloc[i]["MinLon"] + df.iloc[i]["MaxLon"])/2, (df.iloc[i]["MinLat"] + df.iloc[i]["MaxLat"])/2)
 
@@ -420,10 +427,14 @@ class Minicuber:
             
             all_pars.append(pars)
 
+        if numcores <= 1:
 
-        # for pars in tqdm(all_pars):
-        #     cls.save_minicube_mp(pars)
-    
-        with ProcessPoolExecutor(max_workers=numcores) as pool:
+            for pars in tqdm(all_pars):
+                cls.save_minicube_mp(pars)
 
-            _ = list(tqdm(pool.map(cls.save_minicube_mp, all_pars),total = len(all_pars)))
+        else:
+            with ProcessPoolExecutor(max_workers=numcores) as pool:
+
+                _ = list(tqdm(pool.map(cls.save_minicube_mp, all_pars),total = len(all_pars)))
+
+        print(f"Downloading {n} minicubes took {time.time()-starttime:.2f} seconds.")

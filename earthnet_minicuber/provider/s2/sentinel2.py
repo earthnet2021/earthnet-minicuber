@@ -6,9 +6,10 @@ import rasterio
 import ee
 import planetary_computer as pc
 from rasterio import RasterioIOError
-
+import time
 import numpy as np
 import xarray as xr
+import random
 
 from shapely.geometry import Polygon, box
 
@@ -41,6 +42,9 @@ class Sentinel2(provider_base.Provider):
     def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, brdf_correction = True, cloud_mask = True, aws_bucket = "dea", s2_avail_var = True):
         
         self.is_temporal = True
+
+        if cloud_mask and "SCL" not in bands:
+            bands += ["SCL"]
 
         self.bands = bands
         self.best_orbit_filter = best_orbit_filter
@@ -98,8 +102,8 @@ class Sentinel2(provider_base.Provider):
             1 - cloud
             2 - cloud shadows
             3 - snow
-            4 - no valid cloud mask
-            """
+            4 - masked by SCL
+            """#no valid cloud mask
 
         return attrs
         
@@ -116,7 +120,17 @@ class Sentinel2(provider_base.Provider):
                     )
             
             if self.aws_bucket == "planetary_computer":
-                items_s2 = pc.sign(search)
+                for attempt in range(10):
+                    try:
+                        items_s2 = pc.sign(search)
+                    except pystac_client.exceptions.APIError:
+                        print(f"Sen2: Planetary computer time out, attempt {attempt}, retrying in 60 seconds...")
+                        time.sleep(random.uniform(30,90))
+                    else:
+                        break
+                else:
+                    print("Loading Sen2 failed after 10 attempts...")
+                    return None
             else:
                 items_s2 = search.get_all_items()
 
@@ -203,6 +217,9 @@ class Sentinel2(provider_base.Provider):
 
                     stack = xr.concat(cm_chunks, dim = "time")
 
+                stack = stack.to_dataset("band")
+                stack["mask"] = xr.where(stack.mask < 4, stack.mask, 4*((stack.SCL < 2) | (stack.SCL == 3) | (stack.SCL > 7)))
+                stack = stack.to_array("band")
                     
             bands = stack.band.values
             stack["band"] = [f"s2_{b}" for b in stack.band.values]
@@ -214,7 +231,6 @@ class Sentinel2(provider_base.Provider):
                     stack[f"s2_{band}"] = (stack[f"s2_{band}"]/65535).astype("float32")
                 elif band not in ["SCL","mask"]:
                     stack[f"s2_{band}"] = (stack[f"s2_{band}"]/10000).astype("float32")
-                stack[f"s2_{band}"].attrs = self.get_attrs_for_band(band)
             
             stack = stack.drop_vars(["epsg", "id", "id_old", "sentinel:data_coverage", "sentinel:sequence"], errors = "ignore")
             
@@ -230,6 +246,9 @@ class Sentinel2(provider_base.Provider):
 
             if self.cloud_mask:
                 stack["s2_mask"] = cloud_mask
+            
+            for band in bands:
+                stack[f"s2_{band}"].attrs = self.get_attrs_for_band(band)
             
             stack.attrs["epsg"] = epsg
 

@@ -32,6 +32,9 @@ class NDVIClim(provider_base.Provider):
                 collections=["ndvi_climatology_ls"],
             ).get_all_items()
 
+            if len(items_clim.to_dict()['features']) == 0:
+                return None
+
             metadata = items_clim.to_dict()['features'][0]["properties"]
             epsg = metadata["proj:epsg"]
 

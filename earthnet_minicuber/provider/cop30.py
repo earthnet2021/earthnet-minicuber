@@ -6,7 +6,8 @@ import rasterio
 import xarray as xr
 import numpy as np
 import planetary_computer as pc
-
+import time
+import random
 
 from . import provider_base
 
@@ -30,7 +31,20 @@ class Copernicus30(provider_base.Provider):
                 collections=["cop-dem-glo-30"]
             )
             
-        items_dem = pc.sign(search)
+        for attempt in range(10):
+            try:
+                items_dem = pc.sign(search)
+            except pystac_client.exceptions.APIError:
+                print(f"COP30 Dem: Planetary computer time out, attempt {attempt}, retrying in 60 seconds...")
+                time.sleep(random.uniform(30,90))
+            else:
+                break
+        else:
+            print("Loading COP30 DEM failed after 10 attempts...")
+            return None
+
+        if len(items_dem.to_dict()['features']) == 0:
+            return None
 
         metadata = items_dem.to_dict()['features'][0]["properties"]
         epsg = metadata["proj:epsg"]

@@ -6,6 +6,8 @@ import rasterio
 import xarray as xr
 import numpy as np
 import fsspec
+import time
+import random
 
 from . import provider_base
 
@@ -33,10 +35,22 @@ class ERA5(provider_base.Provider):
     def load_data(self, bbox, time_interval, **kwargs):
         
         # If an URL is given, loads the cloud zarr, otherwise loads from local zarrpath
-        if self.zarrurl:
-            era5 = xr.open_zarr(fsspec.get_mapper(self.zarrurl), consolidated=True)
-        elif self.zarrpath:
+        if self.zarrpath:
             era5 = xr.open_zarr(self.zarrpath, consolidated = False)
+        elif self.zarrurl:
+            for attempt in range(10):
+                try:
+                    mapper = fsspec.get_mapper(self.zarrurl)
+                    era5 = xr.open_zarr(mapper, consolidated=True)
+                except fsspec.exceptions.FSTimeoutError:
+                    sleeptime = random.uniform(10,60)
+                    print(f"ERA5 timeout, attempt {attempt}, retrying in {sleeptime} sec.")
+                    time.sleep(sleeptime)
+                else:
+                    break
+            else:
+                print(f"Loading ERA5 for bbox {bbox} failed")
+                return None
 
         era5 = era5[self.bands]
 
