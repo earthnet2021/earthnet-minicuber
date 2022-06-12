@@ -77,7 +77,7 @@ class Sentinel2(provider_base.Provider):
 
         attrs = {}
         attrs["provider"] = "Sentinel 2"
-        attrs["interpolation_type"] = "nearest" if band in ["SCL", "mask"] else "linear"
+        attrs["interpolation_type"] = "nearest" if band in ["SCL", "mask", "avail"] else "linear"
         attrs["description"] = S2BANDS_DESCRIPTION[band]
         if self.brdf_correction and band in ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B11", "B12"]:
             attrs["brdf_correction"] = "Nadir BRDF Adjusted Reflectance (NBAR)"
@@ -215,7 +215,11 @@ class Sentinel2(provider_base.Provider):
                     for i in range(0, len(stack.time.values), 20):
                         cm_chunks.append(computeCloudMask(aoi, stack.isel(time = slice(i,i+20)), stack.isel(time = i).time.values.astype('datetime64[Y]').astype(int) + 1970))
 
-                    stack = xr.concat(cm_chunks, dim = "time")
+                    try:
+                        stack = xr.concat(cm_chunks, dim = "time")
+                    except ValueError:
+                        print(f"sen2flux ValueError for {bbox}, {time_interval}, using SCL mask")
+                        stack["mask"] = np.NaN*stack["SCL"]
 
                 stack = stack.to_dataset("band")
                 stack["mask"] = xr.where(stack.mask < 4, stack.mask, 4*((stack.SCL < 2) | (stack.SCL == 3) | (stack.SCL > 7)))

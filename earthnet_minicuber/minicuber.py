@@ -31,8 +31,8 @@ def compute_scale_and_offset(da, n=16):
     Based on Krios101's code above.
     """
 
-    vmin = np.min(da).item()
-    vmax = np.max(da).item()
+    vmin = np.nanmin(da).item()
+    vmax = np.nanmax(da).item()
 
     # stretch/compress data to the available packed range
     scale_factor = (vmax - vmin) / (2 ** n - 1)
@@ -210,7 +210,7 @@ class Minicuber:
                     all_data.append(cube)
             cube = None
         
-        cube = xr.merge(all_data)
+        cube = xr.merge(all_data, combine_attrs = 'override')
 
         for provider in self.spatial_providers:
             if verbose:
@@ -225,8 +225,6 @@ class Minicuber:
                 if verbose:
                     print(f"Skipping {provider.__class__.__name__} - no data found.")
         
-            
-
         cube['time'] = pd.DatetimeIndex(cube['time'].values)
 
         cube = cube.sel(time = slice(self.time_interval[:10], self.time_interval[-10:]))
@@ -253,12 +251,12 @@ class Minicuber:
         for v in list(minicube.variables):
             if v in ["time", "time_clim", "lat", "lon"]:
                 continue
-            elif ("interpolation_type" in minicube[v].attrs) and (minicube[v].attrs["interpolation_type"] == "nearest"):
-                scale_factor, add_offset = 1.0, 0.0
-            else:
+            elif ("interpolation_type" in minicube[v].attrs) and (minicube[v].attrs["interpolation_type"] == "linear"):
                 scale_factor, add_offset = compute_scale_and_offset(minicube[v].values)
-                
-            if abs(scale_factor) < 1e-8:
+            else:
+                scale_factor, add_offset = 1.0, 0.0
+                            
+            if abs(scale_factor) < 1e-8 or np.isnan(scale_factor) or (scale_factor == 1.0 and minicube[v].max() > 32766):
                 encoding[v] = {"zlib": True, "complevel": 9}
             else:
                 encoding[v] =  {

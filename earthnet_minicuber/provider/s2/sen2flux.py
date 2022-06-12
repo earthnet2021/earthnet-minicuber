@@ -214,7 +214,7 @@ def computeCloudMask(aoi, arr, year):
                 scale=10, crs="EPSG:" + str(arr.attrs["epsg"]), region=ee_aoi, progress = False,num_cores = 2,max_attempts=2
             )
         except (requests.exceptions.HTTPError, ee.ee_exception.EEException):
-            sleeptime = random.uniform(10,60)
+            sleeptime = random.uniform(5,30)
             print(f"Earth engine overload... sleeping {sleeptime:.2f} sec. AOI: {aoi['coordinates'][0][0]}")
             time.sleep(sleeptime)
         except OSError as err:
@@ -253,5 +253,7 @@ def computeCloudMask(aoi, arr, year):
         CLOUD_MASK = CLOUD_MASK.groupby("time").reduce(cloud_mask_reduce, dim = "time")#.max()
 
     s2_cloudmask = xr.concat([arr, CLOUD_MASK], dim="band", coords = "minimal", compat = "override", combine_attrs = "override")
+
+    s2_cloudmask = s2_cloudmask.drop_vars(["id", "id_old", "sentinel:data_coverage", "sentinel:sequence"], errors = "ignore")
 
     return s2_cloudmask
