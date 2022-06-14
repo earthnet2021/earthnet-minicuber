@@ -10,6 +10,7 @@ import time
 import numpy as np
 import xarray as xr
 import random
+from contextlib import nullcontext
 
 from shapely.geometry import Polygon, box
 
@@ -110,8 +111,17 @@ class Sentinel2(provider_base.Provider):
 
 
     def load_data(self, bbox, time_interval, **kwargs):
+
+        if self.aws_bucket == "dea":
+            cm = rasterio.Env(aws_unsigned = True, AWS_S3_ENDPOINT= 's3.af-south-1.amazonaws.com')
+            
+        else:
+            cm = nullcontext()
+
+        gdal_session = stackstac.DEFAULT_GDAL_ENV.updated(always=dict(session=rasterio.session.AWSSession(aws_unsigned = True, endpoint_url = 's3.af-south-1.amazonaws.com' if self.aws_bucket == "dea" else None)))
+
+        with cm as gs:
         
-        with rasterio.Env(aws_unsigned = True, AWS_S3_ENDPOINT= 's3.af-south-1.amazonaws.com'):
 
             search = self.catalog.search(
                         bbox = bbox,
@@ -145,7 +155,7 @@ class Sentinel2(provider_base.Provider):
             # S2B_MSIL2A_20171028T073009_N0001_R049_T37NGA_20191119T142732
             
 
-            stack = stackstac.stack(items_s2, epsg = epsg, assets = self.bands, dtype = "float32", properties = ["sentinel:product_id"], band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 256,errors_as_nodata=(RasterioIOError('.*'), ))#.to_dataset("band") # RasterioIOError('HTTP response code: 404') RasterioIOError('* not recognized as a supported file format.')
+            stack = stackstac.stack(items_s2, epsg = epsg, assets = self.bands, dtype = "float32", properties = ["sentinel:product_id"], band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 256,errors_as_nodata=(RasterioIOError('.*'), ), gdal_env=gdal_session)#.to_dataset("band") # RasterioIOError('HTTP response code: 404') RasterioIOError('* not recognized as a supported file format.')
             if self.aws_bucket != "planetary_computer":
                 stack = stack.rename({"id": "id_old"}).rename({"sentinel:product_id": "id"})
 

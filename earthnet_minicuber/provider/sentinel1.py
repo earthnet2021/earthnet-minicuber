@@ -6,6 +6,7 @@ import stackstac
 import rasterio
 import numpy as np
 import xarray as xr
+from rasterio import RasterioIOError
 
 from scipy.ndimage.filters import uniform_filter
 from scipy.ndimage.measurements import variance
@@ -62,6 +63,8 @@ class Sentinel1(provider_base.Provider):
 
 
     def load_data(self, bbox, time_interval, **kwargs):
+
+        gdal_session = stackstac.DEFAULT_GDAL_ENV.updated(always=dict(session=rasterio.session.AWSSession(aws_unsigned = True, endpoint_url = 's3.af-south-1.amazonaws.com')))
         
         with rasterio.Env(aws_unsigned = True, AWS_S3_ENDPOINT= 's3.af-south-1.amazonaws.com'):
             items_s1 = self.catalog.search(
@@ -83,7 +86,7 @@ class Sentinel1(provider_base.Provider):
             epsg = metadata["proj:epsg"]
             # geotransform = metadata["proj:transform"]
 
-            stack = stackstac.stack(items_s1, epsg = epsg, assets = self.bands, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 1024)
+            stack = stackstac.stack(items_s1, epsg = epsg, assets = self.bands, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 1024,errors_as_nodata=(RasterioIOError('.*'), ), gdal_env=gdal_session)
 
             # stack = stack.isel(time = [v[0] for v in stack.groupby("time.date").groups.values()])
 

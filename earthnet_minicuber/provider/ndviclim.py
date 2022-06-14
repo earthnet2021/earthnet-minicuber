@@ -5,7 +5,7 @@ import stackstac
 import rasterio
 import xarray as xr
 import numpy as np
-
+from rasterio import RasterioIOError
 
 from . import provider_base
 
@@ -25,6 +25,8 @@ class NDVIClim(provider_base.Provider):
 
 
     def load_data(self, bbox, time_interval, **kwargs):
+
+        gdal_session = stackstac.DEFAULT_GDAL_ENV.updated(always=dict(session=rasterio.session.AWSSession(aws_unsigned = True, endpoint_url = 's3.af-south-1.amazonaws.com')))
         
         with rasterio.Env(aws_unsigned = True, AWS_S3_ENDPOINT= 's3.af-south-1.amazonaws.com'):
             items_clim = self.catalog.search(
@@ -38,7 +40,7 @@ class NDVIClim(provider_base.Provider):
             metadata = items_clim.to_dict()['features'][0]["properties"]
             epsg = metadata["proj:epsg"]
 
-            stack = stackstac.stack(items_clim, epsg = epsg, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 800)
+            stack = stackstac.stack(items_clim, epsg = epsg, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 800,errors_as_nodata=(RasterioIOError('.*'), ), gdal_env=gdal_session)
 
             clims = {}
             if "mean" in self.bands:
