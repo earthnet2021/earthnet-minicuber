@@ -86,7 +86,7 @@ class Sentinel1(provider_base.Provider):
             epsg = metadata["proj:epsg"]
             # geotransform = metadata["proj:transform"]
 
-            stack = stackstac.stack(items_s1, epsg = epsg, assets = self.bands, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 1024,errors_as_nodata=(RasterioIOError('.*'), ), gdal_env=gdal_session)
+            stack = stackstac.stack(items_s1, epsg = epsg, assets = self.bands, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 2048,errors_as_nodata=(RasterioIOError('.*'), ), gdal_env=gdal_session)
 
             # stack = stack.isel(time = [v[0] for v in stack.groupby("time.date").groups.values()])
 
