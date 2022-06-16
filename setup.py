@@ -42,7 +42,7 @@ setup(name='earthnet-minicuber',
                 "License :: OSI Approved :: MIT License",
                 "Programming Language :: Python :: 3"
                  ],
-        packages=["earthnet_minicuber"],#find_packages(),
+        packages=find_packages(),#["earthnet_minicuber"],#find_packages(),
         install_requires=install_requires,
         extras_require={
             "EE": ["earthengine-api","wxee","eemont"],
