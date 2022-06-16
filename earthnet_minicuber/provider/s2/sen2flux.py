@@ -25,8 +25,10 @@ SOFTWARE.
 """
 from calendar import monthrange
 
-import ee
-import eemont
+try: 
+    import ee
+except ImportError: 
+    ee = None
 import numpy as np
 import pandas as pd
 import planetary_computer as pc
@@ -172,7 +174,10 @@ def computeCloudMask(aoi, arr, year):
     iDate = f"{year}-01-01"
     eDate = f"{year + 1}-01-01"
 
-    ee_aoi = ee.Geometry(aoi)
+    if ee:
+        ee_aoi = ee.Geometry(aoi)
+    else:
+        return None
 
     GEE_filter = []
     if len(arr.time) == 1:
