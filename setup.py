@@ -13,9 +13,7 @@ install_requires = [
     "zarr",
     "dask",
     "netcdf4",
-    "earthnet",
-    "earthengine-api",
-    "eemont",
+    "earthnet", 
     "pandas",
     "planetary_computer",
     "pyproj",
@@ -23,7 +21,6 @@ install_requires = [
     "rasterio",
     "requests",
     "stackstac",
-    "wxee",
     "rioxarray",
     "shapely",
     "fsspec",
@@ -45,6 +42,9 @@ setup(name='earthnet-minicuber',
                 "License :: OSI Approved :: MIT License",
                 "Programming Language :: Python :: 3"
                  ],
-        packages=find_packages(),
+        packages=["earthnet_minicuber"],#find_packages(),
         install_requires=install_requires,
+        extras_require={
+            "EE": ["earthengine-api","wxee","eemont"],
+        }
         )

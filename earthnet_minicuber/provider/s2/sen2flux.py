@@ -33,7 +33,6 @@ import planetary_computer as pc
 import pystac_client
 import rasterio.features
 import stackstac
-import wxee
 import xarray as xr
 from .cloud_mask import *
 from .nbar import nbar

@@ -3,7 +3,10 @@ import os
 import pystac_client
 import stackstac
 import rasterio
-import ee
+try: 
+    import ee
+except ImportError: 
+    ee = None
 import planetary_computer as pc
 from rasterio import RasterioIOError
 import time
@@ -16,6 +19,7 @@ from shapely.geometry import Polygon, box
 
 #import earthnet_minicuber
 #from ..provider import Provider
+
 from .sen2flux import sunAndViewAngles, computeNBAR, computeCloudMask, cloud_mask_reduce
 from .. import provider_base
 
@@ -44,13 +48,14 @@ class Sentinel2(provider_base.Provider):
         
         self.is_temporal = True
 
-        if cloud_mask and "SCL" not in bands:
+        self.cloud_mask = cloud_mask if ee else False
+
+        if self.cloud_mask and "SCL" not in bands:
             bands += ["SCL"]
 
         self.bands = bands
         self.best_orbit_filter = best_orbit_filter
         self.brdf_correction = brdf_correction
-        self.cloud_mask = cloud_mask
         self.aws_bucket = aws_bucket
         self.s2_avail_var = s2_avail_var
 
@@ -71,7 +76,8 @@ class Sentinel2(provider_base.Provider):
         os.environ['AWS_NO_SIGN_REQUEST'] = "TRUE"
 
         if self.cloud_mask:
-            ee.Initialize()
+            if ee:
+                ee.Initialize()
 
 
     def get_attrs_for_band(self, band):

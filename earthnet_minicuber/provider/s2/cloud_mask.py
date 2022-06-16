@@ -24,8 +24,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import ee
-import eemont
+
+try: 
+    import ee
+except ImportError: 
+    ee = None
 import numpy as np
 
 

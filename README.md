@@ -16,8 +16,8 @@ conda create -n minicuber python=3.9
 conda deactivate
 conda activate minicuber
 conda install -c conda-forge mamba
-mamba install -c conda-forge numpy scipy matplotlib cartopy seaborn netCDF4 xarray zarr dask shapely rasterio rioxarray pillow pandas shapely
-pip install pystac_client stackstac earthengine-api eemont planetary_computer folium cdsapi wxee
+mamba install -c conda-forge numpy scipy matplotlib cartopy seaborn netCDF4 xarray zarr dask shapely pillow pandas gdal s3fs fsspec boto3 psycopg2
+pip install pystac_client stackstac earthengine-api eemont planetary_computer folium cdsapi wxee rasterio[s3] rioxarray 
 ```
 
 Install this package in developing mode with
