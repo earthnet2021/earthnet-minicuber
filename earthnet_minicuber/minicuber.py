@@ -51,6 +51,10 @@ class Minicuber:
         self.xy_shape = specs["xy_shape"]
         self.resolution = specs["resolution"]
         self.time_interval = specs["time_interval"]
+        if "full_time_interval" in specs:
+            self.full_time_interval = specs["full_time_interval"]
+        else:
+            self.full_time_interval = self.time_interval
 
         if "primary_provider" in specs:
             specs["providers"] =  [specs["primary_provider"]] + specs["other_providers"]
@@ -190,7 +194,7 @@ class Minicuber:
                 if verbose:
                     print(f"Loading {provider.__class__.__name__} for {time_interval}")
 
-                product_cube = provider.load_data(self.padded_bbox, time_interval, full_time_interval = self.time_interval)
+                product_cube = provider.load_data(self.padded_bbox, time_interval, full_time_interval = self.full_time_interval)
 
                 if product_cube is not None:
                     if cube is None:
@@ -225,9 +229,10 @@ class Minicuber:
                 if verbose:
                     print(f"Skipping {provider.__class__.__name__} - no data found.")
         
-        cube['time'] = pd.DatetimeIndex(cube['time'].values)
+        if "time" in cube:
+            cube['time'] = pd.DatetimeIndex(cube['time'].values)
 
-        cube = cube.sel(time = slice(self.time_interval[:10], self.time_interval[-10:]))
+            cube = cube.sel(time = slice(self.time_interval[:10], self.time_interval[-10:]))
 
         cube.attrs = {
             "dataset_name": "EarthNet2022 - Africa",

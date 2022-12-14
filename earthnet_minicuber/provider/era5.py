@@ -76,7 +76,7 @@ class ERA5(provider_base.Provider):
             else:
                 continue
             curr_agg_era5["time"] = np.array([str(d) for d in curr_agg_era5.time.values], dtype="datetime64[D]")
-            curr_agg_era5 = curr_agg_era5.rename({b: f"era5_{b}_{aggregation_type}" for b in self.bands})
+            curr_agg_era5 = curr_agg_era5.rename({b: f"era5land_{b}_{aggregation_type}" for b in self.bands})
             agg_era5_collector.append(curr_agg_era5)
         
         agg_era5 = xr.merge(agg_era5_collector)
@@ -85,7 +85,7 @@ class ERA5(provider_base.Provider):
         for b in self.bands:
             for a in self.aggregation_types:
 
-                agg_era5[f"era5_{b}_{a}"].attrs = {
+                agg_era5[f"era5land_{b}_{a}"].attrs = {
                     "provider": "ERA5-Land",
                     "interpolation_type": "linear",
                     "description": f"{SHORT_TO_LONG_NAMES[b]} 3-hourly data aggregated by {a}"

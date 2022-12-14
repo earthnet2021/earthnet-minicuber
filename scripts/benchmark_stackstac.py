@@ -57,9 +57,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     starttime = time.perf_counter()
-    starttime2 = time.time()
     time_stackstac(aws_bucket = args.bucket, use_gdal_session = args.use_gdal_session)
     elapsed_time = time.perf_counter() - starttime
-    elapsed_time2 = time.time() - starttime2
-    print(f"Took {elapsed_time} seconds process time and {elapsed_time2} seconds raw time.")
+    print(f"Took {elapsed_time} seconds process time.")
     

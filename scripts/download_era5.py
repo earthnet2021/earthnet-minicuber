@@ -31,79 +31,86 @@ if __name__ == "__main__":
     }
     SHORT_NAMES_INV = {v: k for k,v in SHORT_NAMES.items()}
 
-    variables = ['2m_temperature', 'potential_evaporation', 'surface_latent_heat_flux',
-                'surface_net_solar_radiation', 'surface_pressure', 'surface_sensible_heat_flux',
-                'total_evaporation', 'total_precipitation']
+    # variables = ['2m_temperature', 'potential_evaporation', 'surface_latent_heat_flux',
+    #             'surface_net_solar_radiation', 'surface_pressure', 'surface_sensible_heat_flux',
+    #             'total_evaporation', 'total_precipitation']
 
-    for variable in variables:
-        print(f"Downloading {variable}")
-        c.retrieve(
-        'reanalysis-era5-land',
-        {
-            'format': 'netcdf',
-            'year': [
-                '2017', '2018', '2019',
-                '2020', '2021', '2022',
-            ],
-            'month': [
-                '01', '02', '03',
-                '04', '05', '06',
-                '07', '08', '09',
-                '10', '11', '12',
-            ],
-            'day': [
-                '01', '02', '03',
-                '04', '05', '06',
-                '07', '08', '09',
-                '10', '11', '12',
-                '13', '14', '15',
-                '16', '17', '18',
-                '19', '20', '21',
-                '22', '23', '24',
-                '25', '26', '27',
-                '28', '29', '30',
-                '31',
-            ],
-            'time': [
-                '00:00', 
-                '03:00',
-                '06:00', 
-                '09:00', 
-                '12:00', 
-                '15:00', 
-                '18:00',
-                '21:00'
-            ],
-            'variable': variable,
-            'area': [
-                40, -25, -40,
-                55,
-            ],
-        },
-        str(Path(args.outpath)/f'era5_{SHORT_NAMES_INV[variable]}.nc'))
+    # for variable in variables:
+    #     print(f"Downloading {variable}")
+    #     c.retrieve(
+    #     'reanalysis-era5-land',
+    #     {
+    #         'format': 'netcdf',
+    #         'year': [
+    #             '2016', '2022'#
+    #         ],
+    #         'month': [
+    #             '01', '02', '03',
+    #             '04', '05', '06',
+    #             '07', '08', '09',
+    #             '10', '11', '12',
+    #         ],
+    #         'day': [
+    #             '01', '02', '03',
+    #             '04', '05', '06',
+    #             '07', '08', '09',
+    #             '10', '11', '12',
+    #             '13', '14', '15',
+    #             '16', '17', '18',
+    #             '19', '20', '21',
+    #             '22', '23', '24',
+    #             '25', '26', '27',
+    #             '28', '29', '30',
+    #             '31',
+    #         ],
+    #         'time': [
+    #             '00:00', 
+    #             '03:00',
+    #             '06:00', 
+    #             '09:00', 
+    #             '12:00', 
+    #             '15:00', 
+    #             '18:00',
+    #             '21:00'
+    #         ],
+    #         'variable': variable,
+    #         'area': [
+    #             40, -25, -40,
+    #             55,
+    #         ],
+    #     },
+    #     str(Path(args.outpath)/f'era5_{SHORT_NAMES_INV[variable]}.nc'))
 
-    era5 = xr.merge([xr.open_dataset(ncpath, chunks = {"latitude": 20, "longitude": 20, "time": 8*365}).rename({"latitude": "lat", "longitude": "lon"}) for ncpath in Path(args.outpath).glob("*.nc")])
+    # era5 = xr.merge([xr.open_dataset(ncpath, chunks = {"latitude": 20, "longitude": 20, "time": 8*365}).rename({"latitude": "lat", "longitude": "lon"}) for ncpath in Path(args.outpath).glob("*.nc")] + [xr.open_zarr("/Net/Groups/BGI/scratch/DeepCube/UC1/era5_africa/era5_africa_0d1_3hourly.zarr").sel(time = slice(None, "2021-12-31"))])
 
-    ds = xr.Dataset(coords = dict(era5.coords))
+    # ds = xr.Dataset(coords = dict(era5.coords))
     
-    ds = ds.chunk(chunks={"time": 8*365, "lat": 20, "lon": 20})
+    # ds = ds.chunk(chunks={"time": 8*365, "lat": 20, "lon": 20})
 
     zarrpath = str(Path(args.outpath)/"era5_africa_0d1_3hourly.zarr")
 
-    ds.to_zarr(zarrpath)
+    # ds.to_zarr(zarrpath)
 
     zarrgroup = zarr.open_group(zarrpath)
 
-    compressor = Blosc(cname='lz4', clevel=1)
+    # compressor = Blosc(cname='lz4', clevel=1)
 
-    for var in list(SHORT_NAMES.keys()):
-        newds = zarrgroup.create_dataset(var, shape = (len(era5.time.values),len(era5.lat.values), len(era5.lon.values)), chunks = (8*365, 20, 20), dtype = 'float32', fillvalue = np.nan, compressor = compressor)
-        newds.attrs['_ARRAY_DIMENSIONS'] = ("time", "lat", "lon")
+    # for var in list(SHORT_NAMES.keys()):
+    #     newds = zarrgroup.create_dataset(var, shape = (len(era5.time.values),len(era5.lat.values), len(era5.lon.values)), chunks = (8*365, 20, 20), dtype = 'float32', fillvalue = np.nan, compressor = compressor)
+    #     newds.attrs['_ARRAY_DIMENSIONS'] = ("time", "lat", "lon")
 
 
     for var in tqdm(list(SHORT_NAMES.keys())):
         
         era5var = xr.open_dataset(str(Path(args.outpath)/f"era5_{var}.nc"))
+        era5varold = xr.open_zarr("/Net/Groups/BGI/scratch/DeepCube/UC1/era5_africa/era5_africa_0d1_3hourly.zarr", consolidated = False).sel(time = slice(None, "2021-12-31"))[[var]]
+        
+        #xr.merge([xr.open_dataset(str(Path(args.outpath)/f"era5_{var}.nc")),xr.open_zarr("/Net/Groups/BGI/scratch/DeepCube/UC1/era5_africa/era5_africa_0d1_3hourly.zarr", consolidated = False).sel(time = slice(None, "2021-12-31"))[[var]]])
 
-        zarrgroup[var][:] = era5var[var].values
+        era5_16 = era5var.sel(time=slice("20160101","20170101"))
+        era5_22 = era5var.sel(time=slice("20220101","20230101"))
+
+        zarrgroup[var][:len(era5_16.time),:,:] = era5_16[var].values
+        zarrgroup[var][-len(era5_22.time):,:,:] = era5_22[var].values
+        zarrgroup[var][len(era5_16.time):-len(era5_22.time):,:,:] = era5varold[var].values
     

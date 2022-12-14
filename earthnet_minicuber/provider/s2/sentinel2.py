@@ -44,7 +44,7 @@ S2BANDS_DESCRIPTION = {
 
 class Sentinel2(provider_base.Provider):
 
-    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, brdf_correction = True, cloud_mask = True, aws_bucket = "dea", s2_avail_var = True):
+    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, five_daily_filter = False, brdf_correction = True, cloud_mask = True, aws_bucket = "dea", s2_avail_var = True):
         
         self.is_temporal = True
 
@@ -55,6 +55,7 @@ class Sentinel2(provider_base.Provider):
 
         self.bands = bands
         self.best_orbit_filter = best_orbit_filter
+        self.five_daily_filter = five_daily_filter
         self.brdf_correction = brdf_correction
         self.aws_bucket = aws_bucket
         self.s2_avail_var = s2_avail_var
@@ -197,10 +198,28 @@ class Sentinel2(provider_base.Provider):
                 dates = np.arange(max_area_date - ((max_area_date - min_date)//5)*5, max_date+1, 5)
 
                 stack = stack.sel(time = stack.time.dt.date.isin(dates))
+            
+            elif self.five_daily_filter:
+
+                if "full_time_interval" in kwargs:
+                    full_time_interval = kwargs["full_time_interval"]
+                else:
+                    full_time_interval = time_interval
+
+                min_date, max_date = np.datetime64(full_time_interval[:10]), np.datetime64(full_time_interval[-10:])
+
+                dates = np.arange(min_date, max_date+1, 5)
+
+                stack = stack.sel(time = stack.time.dt.date.isin(dates))
+
 
             if self.brdf_correction:
 
                 stack_plus_metadata, stack = sunAndViewAngles(search.get_all_items(), stack, aws_bucket = self.aws_bucket)
+
+                if stack_plus_metadata is None:
+                    print("Skipping, no valid metadata for BRDF correction")
+                    return None
                 
                 stack = computeNBAR(stack_plus_metadata, stack)
 
@@ -239,6 +258,7 @@ class Sentinel2(provider_base.Provider):
 
                 stack = stack.to_dataset("band")
                 stack["mask"] = xr.where(stack.mask < 4, stack.mask, 4*((stack.SCL < 2) | (stack.SCL == 3) | (stack.SCL > 7)))
+                #stack["mask"] = xr.where((stack.SCL < 2) | (stack.SCL == 8) | (stack.SCL == 9) & (stack.mask < 1), 4*(stack.mask < 1),stack.mask)
                 stack = stack.to_array("band")
                     
             bands = stack.band.values

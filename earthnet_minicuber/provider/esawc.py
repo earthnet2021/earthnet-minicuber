@@ -5,36 +5,63 @@ import stackstac
 import rasterio
 import xarray as xr
 import numpy as np
-
+from contextlib import nullcontext
+import planetary_computer as pc
 
 from . import provider_base
 
 
 class ESAWorldcover(provider_base.Provider):
 
-    def __init__(self, bands = ["lc"]):#, "mrrtf", "mrvbf", "slope"]):
+    def __init__(self, bands = ["lc"],aws_bucket = "dea"):
         self.is_temporal = False
-        # TODO: Fix srtm_deriv bands.. these are not in lat-lon but some weird other projection..
         self.bands = bands
+        self.aws_bucket = aws_bucket
 
-        URL = "https://explorer.digitalearth.africa/stac/"
+        if aws_bucket == "dea":
+            URL = "https://explorer.digitalearth.africa/stac/"
+            os.environ['AWS_S3_ENDPOINT'] = 's3.af-south-1.amazonaws.com'
+
+        else:#elif aws_bucket == "planetary_computer":
+            URL = 'https://planetarycomputer.microsoft.com/api/stac/v1'
+
         self.catalog = pystac_client.Client.open(URL)
 
         os.environ['AWS_NO_SIGN_REQUEST'] = "TRUE"
-        os.environ['AWS_S3_ENDPOINT'] = 's3.af-south-1.amazonaws.com'
 
 
     def load_data(self, bbox, time_interval, **kwargs):
+
+        if self.aws_bucket == "dea":
+            cm = rasterio.Env(aws_unsigned = True, AWS_S3_ENDPOINT= 's3.af-south-1.amazonaws.com')
+            
+        else:
+            cm = nullcontext()
         
-        with rasterio.Env(aws_unsigned = True, AWS_S3_ENDPOINT= 's3.af-south-1.amazonaws.com'):
+        with cm:
 
             stack = None
 
             # if "dem" in self.bands:
-            items_esawc = self.catalog.search(
+            search = self.catalog.search(
                     bbox = bbox,
-                    collections=["esa_worldcover"]
-                ).get_all_items()
+                    collections=["esa_worldcover" if self.aws_bucket == "dea" else "esa-worldcover"]
+                )
+
+            if self.aws_bucket == "planetary_computer":
+                for attempt in range(10):
+                    try:
+                        items_esawc = pc.sign(search)
+                    except pystac_client.exceptions.APIError:
+                        print(f"ESAWC: Planetary computer time out, attempt {attempt}, retrying in 60 seconds...")
+                        time.sleep(random.uniform(30,90))
+                    else:
+                        break
+                else:
+                    print("Loading ESAWC failed after 10 attempts...")
+                    return None
+            else:
+                items_esawc = search.get_all_items()
 
             if len(items_esawc.to_dict()['features']) == 0:
                 return None

@@ -27,8 +27,10 @@ SOFTWARE.
 
 try: 
     import ee
+    import eemont
 except ImportError: 
     ee = None
+    eemont = None
 import numpy as np
 
 

@@ -27,8 +27,10 @@ from calendar import monthrange
 
 try: 
     import ee
+    import wxee
 except ImportError: 
     ee = None
+    wxee = None
 import numpy as np
 import pandas as pd
 import planetary_computer as pc
@@ -115,6 +117,9 @@ def sunAndViewAngles(items, ref, aws_bucket = "dea"):
                 kwargs={"fill_value": "extrapolate"},
             )
         )
+    
+    if len(angles_array) == 0:
+        return None, None
     md = xr.concat(angles_array, dim="time")
     md = md.assign_coords(time=("time", ref.time.data))
 
