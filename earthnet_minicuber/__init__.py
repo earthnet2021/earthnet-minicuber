@@ -1,15 +1,16 @@
 """EarthNet Minicuber"""
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 __author__ = "Vitus Benson"
 
 
 
-from . import minicuber, provider
+from . import minicuber, provider, plot
 
 from earthnet_minicuber.minicuber import Minicuber
 from earthnet_minicuber.provider.provider_base import Provider
 from earthnet_minicuber.provider import PROVIDERS
+from earthnet_minicuber.plot import plot_rgb
 
 
 load_minicube = Minicuber.load_minicube

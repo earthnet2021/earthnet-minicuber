@@ -12,15 +12,19 @@ It is currently under development, thus do expect bugs and please report them!
 Prerequisites (We use an Anaconda environment):
 
 ```
-conda create -n minicuber python=3.9
+conda create -n minicuber python=3.10 gdal cartopy -c conda-forge
 conda deactivate
 conda activate minicuber
-conda install -c conda-forge mamba
-mamba install -c conda-forge numpy scipy matplotlib cartopy seaborn netCDF4 xarray zarr dask shapely pillow pandas gdal s3fs fsspec boto3 psycopg2
-pip install pystac_client stackstac earthengine-api eemont planetary_computer folium cdsapi wxee rasterio[s3] rioxarray 
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install scipy matplotlib seaborn netCDF4 xarray zarr dask shapely pillow pandas s3fs fsspec boto3 psycopg2 pystac-client stackstac planetary-computer rasterio[s3] rioxarray odc-algo segmentation-models-pytorch folium ipykernel ipywidgets
 ```
 
-Install this package in developing mode with
+Install this package with PyPI:
+```
+pip install earthnet-minicuber
+```
+
+or install this package in developing mode with
 ```
 git clone https://github.com/earthnet2021/earthnet-minicuber.git
 cd earthnet-minicuber

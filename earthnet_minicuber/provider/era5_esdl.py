@@ -1,13 +1,8 @@
 
-import os
-import pystac_client
-import stackstac
-import rasterio
+
 import xarray as xr
 import numpy as np
-import fsspec
-import time
-import random
+import s3fs
 
 from . import provider_base
 
@@ -30,11 +25,20 @@ class ERA5_ESDL(provider_base.Provider):
         self.bands = bands
         self.zarrpath = zarrpath
 
+        if zarrpath is not None:
+            self.s3 = s3fs.S3FileSystem(anon=True,
+            client_kwargs={
+            'endpoint_url': 'https://s3.bgc-jena.mpg.de:9000',
+            'region_name': 'thuringia',
+            })
+
     def load_data(self, bbox, time_interval, **kwargs):
         
         # If an URL is given, loads the cloud zarr, otherwise loads from local zarrpath
         if self.zarrpath:
             era5 = xr.open_zarr(self.zarrpath)
+        else:
+            era5 = xr.open_zarr(s3fs.S3Map(root ="s3:///xaida/ERA5Data.zarr", s3=self.s3, check = False), consolidated=True)
 
         era5 = era5[self.bands]
 

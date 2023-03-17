@@ -3,10 +3,7 @@ import os
 import pystac_client
 import stackstac
 import rasterio
-try: 
-    import ee
-except ImportError: 
-    ee = None
+
 import planetary_computer as pc
 from rasterio import RasterioIOError
 import time
@@ -17,10 +14,8 @@ from contextlib import nullcontext
 
 from shapely.geometry import Polygon, box
 
-#import earthnet_minicuber
-#from ..provider import Provider
-
-from .sen2flux import sunAndViewAngles, computeNBAR, computeCloudMask, cloud_mask_reduce
+from .sen2flux import sunAndViewAngles, computeNBAR
+from .cloudmask import CloudMask, cloud_mask_reduce
 from .. import provider_base
 
 S2BANDS_DESCRIPTION = {
@@ -39,7 +34,7 @@ S2BANDS_DESCRIPTION = {
     "AOT": "Aerosol optical thickness",
     "WVP": "Scene average water vapour",
     "SCL": "Scene classification layer",
-    "mask": "sen2flux Cloud Mask"
+    "mask": "Deep Learning Cloud Mask, trained by Vitus Benson on cloudSEN12, leveraging code from César Aybar."
 }
 
 class Sentinel2(provider_base.Provider):
@@ -48,7 +43,7 @@ class Sentinel2(provider_base.Provider):
         
         self.is_temporal = True
 
-        self.cloud_mask = cloud_mask if ee else False
+        self.cloud_mask = CloudMask(bands=bands) if cloud_mask else None
 
         if self.cloud_mask and "SCL" not in bands:
             bands += ["SCL"]
@@ -75,11 +70,6 @@ class Sentinel2(provider_base.Provider):
         self.catalog = pystac_client.Client.open(URL)
 
         os.environ['AWS_NO_SIGN_REQUEST'] = "TRUE"
-
-        if self.cloud_mask:
-            if ee:
-                ee.Initialize()
-
 
     def get_attrs_for_band(self, band):
 
@@ -110,8 +100,8 @@ class Sentinel2(provider_base.Provider):
             1 - cloud
             2 - cloud shadows
             3 - snow
-            4 - masked by SCL
-            """#no valid cloud mask
+            4 - masked other reasons
+            """
 
         return attrs
         
@@ -157,12 +147,10 @@ class Sentinel2(provider_base.Provider):
             metadata = items_s2.to_dict()['features'][0]["properties"]
             epsg = metadata["proj:epsg"]
 
-            # geotransform = metadata["proj:transform"]
-            # S2A_MSIL2A_20170427T102031_R065_T31PBT_20210209T110609
-            # S2B_MSIL2A_20171028T073009_N0001_R049_T37NGA_20191119T142732
-            
 
-            stack = stackstac.stack(items_s2, epsg = epsg, assets = self.bands, dtype = "float32", properties = ["sentinel:product_id"], band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 2048,errors_as_nodata=(RasterioIOError('.*'), ), gdal_env=gdal_session)#.to_dataset("band") # RasterioIOError('HTTP response code: 404') RasterioIOError('* not recognized as a supported file format.')
+            stack = stackstac.stack(items_s2, epsg = epsg, assets = self.bands, dtype = "float32", properties = ["sentinel:product_id"], band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 2048,errors_as_nodata=(RasterioIOError('.*'), ), gdal_env=gdal_session)
+
+
             if self.aws_bucket != "planetary_computer":
                 stack = stack.rename({"id": "id_old"}).rename({"sentinel:product_id": "id"})
 
@@ -223,43 +211,9 @@ class Sentinel2(provider_base.Provider):
                 
                 stack = computeNBAR(stack_plus_metadata, stack)
 
-            #stack = stack.isel(time = [v[0] for v in stack.groupby("time").groups.values()])
-            #stack = stack.groupby("time.date").last(skipna = False).rename({"date": "time"})
 
             if self.cloud_mask:
-
-                E, S, W, N = bbox
-
-                polygon = [
-                    [W, S],
-                    [E, S],
-                    [E, N],
-                    [W, N],
-                    [W, S],
-                ]
-
-                aoi = {
-                    "type": "Polygon",
-                    "coordinates": [polygon],
-                }
-                
-                if len(stack.time.values) < 20:
-                    stack = computeCloudMask(aoi, stack, stack.time.values.astype('datetime64[Y]').astype(int)[0] + 1970)
-                else:
-                    cm_chunks = []
-                    for i in range(0, len(stack.time.values), 20):
-                        cm_chunks.append(computeCloudMask(aoi, stack.isel(time = slice(i,i+20)), stack.isel(time = i).time.values.astype('datetime64[Y]').astype(int) + 1970))
-
-                    try:
-                        stack = xr.concat(cm_chunks, dim = "time")
-                    except ValueError:
-                        print(f"sen2flux ValueError for {bbox}, {time_interval}, using SCL mask")
-                        stack["mask"] = np.NaN*stack["SCL"]
-
-                stack = stack.to_dataset("band")
-                stack["mask"] = xr.where(stack.mask < 4, stack.mask, 4*((stack.SCL < 2) | (stack.SCL == 3) | (stack.SCL > 7)))
-                #stack["mask"] = xr.where((stack.SCL < 2) | (stack.SCL == 8) | (stack.SCL == 9) & (stack.mask < 1), 4*(stack.mask < 1),stack.mask)
-                stack = stack.to_array("band")
+                stack = self.cloud_mask(stack)
                     
             bands = stack.band.values
             stack["band"] = [f"s2_{b}" for b in stack.band.values]
@@ -272,27 +226,21 @@ class Sentinel2(provider_base.Provider):
                 elif band not in ["SCL","mask"]:
                     stack[f"s2_{band}"] = (stack[f"s2_{band}"]/10000).astype("float32")
             
-            stack = stack.drop_vars(["epsg", "id", "id_old", "sentinel:data_coverage", "sentinel:sequence"], errors = "ignore")
+            stack = stack.drop_vars(["epsg", "id", "id_old", "sentinel:data_coverage", "sentinel:sequence", "sentinel:product_id"], errors = "ignore")
             
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
 
             if self.s2_avail_var:
                 stack["s2_avail"] = xr.DataArray(np.ones_like(stack.time.values, dtype = "uint8"), coords = {"time": stack.time.values}, dims = ("time",))
-
-            if self.cloud_mask:
-                cloud_mask = stack.s2_mask.groupby("time.date").reduce(cloud_mask_reduce, dim = "time").rename({"date": "time"})
-
-            stack = stack.groupby("time.date").median("time").rename({"date": "time"})
-
-            if self.cloud_mask:
-                stack["s2_mask"] = cloud_mask
+            
+            if len(stack.time) > 0:
+                stack = stack.groupby("time.date").last(skipna = False).rename({"date": "time"})
+            else:
+                return None
             
             for band in bands:
                 stack[f"s2_{band}"].attrs = self.get_attrs_for_band(band)
             
             stack.attrs["epsg"] = epsg
-
-            if self.aws_bucket != "dea":
-                stack = stack.compute()
 
             return stack

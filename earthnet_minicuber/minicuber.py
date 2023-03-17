@@ -12,18 +12,13 @@ from pathlib import Path
 
 import pystac_client
 import rasterio
+import datetime
 import time
 import warnings
 import traceback
 import random
 
-from copy import deepcopy
-
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from tqdm import tqdm
-
 from .provider import PROVIDERS
-from .license import LICENSE
 
 def compute_scale_and_offset(da, n=16):
     """Calculate offset and scale factor for int conversion
@@ -228,6 +223,9 @@ class Minicuber:
             else:
                 if verbose:
                     print(f"Skipping {provider.__class__.__name__} - no data found.")
+
+        if compute:
+            cube = cube.compute()
         
         if "time" in cube:
             cube['time'] = pd.DatetimeIndex(cube['time'].values)
@@ -235,12 +233,7 @@ class Minicuber:
             cube = cube.sel(time = slice(self.time_interval[:10], self.time_interval[-10:]))
 
         cube.attrs = {
-            "dataset_name": "EarthNet2022 - Africa",
-            "dataset_name_short": "en22",
-            "dataset_version": "v0.3",
-            "description": "This is a minicube from the EarthNet2022 - Africa dataset, created within the context of the DeepCube Project. For more see https://www.earthnet.tech/ and https://deepcube-h2020.eu/.",
-            "license": LICENSE,
-            "provided_by": "Max-Planck-Institute for Biogeochemistry"
+            "history": f"Created on {datetime.datetime.now()} with the earthnet-minicuber Python package. See https://github.com/earthnet2021/earthnet-minicuber"
         }
 
         return cube
@@ -339,105 +332,5 @@ class Minicuber:
             if c > 5:
                 done = True
                 print(f"Pystac connection error.. skipping {pars['savepath']}")
+
         print(f"{pars['savepath']} took {time.time()-starttime:.2f} seconds.")
-
-    #/Net/Groups/BGI/people/vbenson/EarthNet/earthnet-minicuber/scripts$ python create_en22.py --savepath /Net/Groups/BGI/scratch/DeepCube/UC1/minicubes_v03 --csvpath /Net/Groups/BGI/scratch/DeepCube/UC1/sampled_minicubes.csv --n 1000 --numcores 64
-    @classmethod
-    def create_minicubes_from_dataframe(cls, savepath, csvpath, n = 10, numcores = 8, basespecs = None):
-        starttime = time.time()
-        if not basespecs:
-            basespecs = {
-                "lon_lat": (43.598946, 3.087414), # center pixel
-                "xy_shape": (128,128), # width, height of cutout around center pixel
-                "resolution": 30, # in meters.. will use this together with grid of primary provider..
-                "time_interval": "2018-01-01/2021-12-31",
-                "providers": [
-                    {
-                        "name": "s2",
-                        "kwargs": {"bands": ["B02", "B03", "B04", "B05", "B06", "B07", "B8A"],#, "B09", "B11", "B12"], 
-                        "best_orbit_filter": True, "brdf_correction": True, "cloud_mask": True, "aws_bucket": "element84"}
-                    },
-                    {
-                        "name": "s1",
-                        "kwargs": {"bands": ["vv", "vh","mask"], "speckle_filter": True, "speckle_filter_kwargs": {"type": "lee", "size": 9}} 
-                    },
-                    {
-                        "name": "ndviclim",
-                        "kwargs": {"bands": ["mean", "std"]}
-                    },
-                    {
-                        "name": "srtm",
-                        "kwargs": {"bands": ["dem"]}
-                    },
-                    {
-                        "name": "esawc",
-                        "kwargs": {"bands": ["lc"]}
-                    },
-                    {
-                        "name": "era5",
-                        "kwargs": {
-                            "bands": ['t2m', 'pev', 'slhf', 'ssr', 'sp', 'sshf', 'e', 'tp'], 
-                            "aggregation_types": ["mean", "min", "max"], 
-                            "zarrpath": "/Net/Groups/BGI/scratch/DeepCube/UC1/era5_africa/era5_africa_0d1_3hourly.zarr",
-                            "zarrurl": "https://storage.de.cloud.ovh.net/v1/AUTH_84d6da8e37fe4bb5aea18902da8c1170/uc1-africa/era5_africa_0d1_3hourly.zarr",
-                        }
-                    },
-                    {
-                        "name": "sg",
-                        "kwargs": {
-                            "vars": ["bdod", "cec", "cfvo", "clay", "nitrogen", "phh2o", "ocd", "sand", "silt", "soc"],
-                            "depths": {"top": ["0-5cm", "5-15cm", "15-30cm"], "sub": ["30-60cm", "60-100cm", "100-200cm"]}, 
-                            "vals": ["mean"],
-                            "dirpath": "/Net/Groups/BGI/work_2/Landscapes_dynamics/downloads/soilgrids/Africa/"
-                        }
-                    },
-                    {
-                        "name": "geom",
-                        "kwargs": {"filepath": "/Net/Groups/BGI/work_2/Landscapes_dynamics/downloads/Geomorphons/geom/geom_90M_africa_europe.tif"}
-                    },
-                    {
-                        "name": "alos",
-                        "kwargs": {}
-                    },
-                    {
-                        "name": "cop",
-                        "kwargs": {}
-                    }
-                ]
-        }
-
-        savepath = Path(savepath)
-
-        df = pd.read_csv(csvpath)
-
-        all_pars = []
-        for i in range(1000, 1000+n):
-
-            lon_lat_center = ((df.iloc[i]["MinLon"] + df.iloc[i]["MaxLon"])/2, (df.iloc[i]["MinLat"] + df.iloc[i]["MaxLat"])/2)
-
-            specs = deepcopy(basespecs)
-            specs["lon_lat"] = lon_lat_center
-
-            name = df.iloc[i]["Unnamed: 0"]
-
-            savepath_cube = savepath/f"{name}.nc"
-
-            pars = {
-                "specs": specs,
-                "savepath": savepath_cube,
-                "verbose": True
-            }
-            
-            all_pars.append(pars)
-
-        if numcores <= 1:
-
-            for pars in tqdm(all_pars):
-                cls.save_minicube_mp(pars)
-
-        else:
-            with ProcessPoolExecutor(max_workers=numcores) as pool:
-
-                _ = list(tqdm(pool.map(cls.save_minicube_mp, all_pars),total = len(all_pars)))
-
-        print(f"Downloading {n} minicubes took {time.time()-starttime:.2f} seconds.")
