@@ -78,6 +78,24 @@ emc.plot_rgb(mc)
 See `notebooks/example.ipynb` for a more detailed usage example.
 
 
+
+## Data Providers
+
+The minicuber is centered around the concept of data providers, which wrap a data source and handle data loading of that source. The `emc.Minicuber` class then manages these data providers, by telling them the spatio-temporal range for which data needs to be loaded and afterwards re-gridding all data to a common reference frame (UTM grid).
+
+### Sentinel 2
+
+The Sentinel 2 provider loads and processes Copernicus Sentinel 2 imagery.
+
+Kwargs:
+- `bands`: choose any subset from `["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP", "AOT", "SCL"]`.
+- `aws_bucket`: We currently support data loading from three cloud buckets: Microsoft Planetary Computer (`"planetary_computer"`), Element84 AWS bucket (`element84`) and DigitalEarthAfrica AWS bucket (`dea`). We recommend using the Microsoft planetary computer with the keyword argument `aws_bucket = "planetary_computer"`.
+- `best_orbit_filter`: Sentinel 2 has a regular overpass frequency of 5 days. However, sometimes it can be smaller due to off-nadir captures. Such captures change the viewing angle of the scene. If `True`, this filter finds the best orbit and then only returns imagery from a regular 5-daily cycle.
+- `five_daily_filter`: If `True` returns a regular 5-daily cycle starting with the first date in `full_time_interval`. It has no effect, if `best_orbit_filter` is used.
+- `brdf_correction`: If `True`, does BRDF correction based on the Sentinel 2 Metadata (illumination angles).
+- `cloud_mask`: If `True`, creates a cloud and cloud shadow mask based on deep learning. It automatically finds the best available cloud mask for the requested `bands`.
+
+
 ## Installation
 
 Prerequisites (We use an Anaconda environment):
