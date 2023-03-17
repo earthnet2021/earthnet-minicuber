@@ -5,7 +5,7 @@ __author__ = "Vitus Benson"
 
 
 
-from . import minicuber, provider, plot
+from . import provider, minicuber, plot
 
 from earthnet_minicuber.minicuber import Minicuber
 from earthnet_minicuber.provider.provider_base import Provider
