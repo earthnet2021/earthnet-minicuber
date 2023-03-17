@@ -1,8 +1,26 @@
-# earthnet-minicuber
+
+# EarthNet Minicuber
+
+<a href='https://pypi.python.org/pypi/earthnet-minicuber'>
+    <img src='https://img.shields.io/pypi/v/earthnet-minicuber.svg' alt='PyPI' />
+</a>
+<a href="https://opensource.org/licenses/MIT" target="_blank">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
+</a>
+<a href="https://twitter.com/vitusbenson" target="_blank">
+    <img src="https://img.shields.io/twitter/follow/vitusbenson?style=social" alt="Twitter">
+</a>
+
 
 A Python library for creating EarthNet-style minicubes.
 
-These minicubes usually contain a satellite image time series of Sentinel 2 imagery alongside other complementary information, all re-gridded to a common grid. This package implements a cloud mask based on deep learning, which allows for analysis-ready Sentinel 2 imagery.
+**GitHub**: [https://github.com/earthnet2021/earthnet-minicuber](https://github.com/earthnet2021/earthnet-minicuber)
+
+**PyPI**: [https://pypi.org/project/earthnet-minicuber/](https://pypi.org/project/earthnet-minicuber/)
+
+
+
+This package creates minicubes from cloud storage using STAC catalogues. A minicube usually contains a satellite image time series of Sentinel 2 imagery alongside other complementary information, all re-gridded to a common grid. This package implements a cloud mask based on deep learning, which allows for analysis-ready Sentinel 2 imagery.
 
 It is currently under development, thus do expect bugs and please report them!
 
@@ -90,7 +108,7 @@ pip install git+https://github.com/earthnet2021/earthnet-minicuber.git
 
 ## Similar Packages
 
-This package is build on top of [stackstac](), which allows accessing data stored in cloud-optimized geotiffs with xarray.
+This package is build on top of [stackstac](https://stackstac.readthedocs.io/en/latest/), which allows accessing data stored in cloud-optimized geotiffs with xarray.
 
 Similar to this package, [cubo](https://github.com/davemlz/cubo) provides a high-level interface to stackstac.
 
