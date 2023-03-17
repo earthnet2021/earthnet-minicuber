@@ -1,7 +1,7 @@
 
 # EarthNet Minicuber
 
-A Python library for creating EarthNet-style minicubes.
+*A Python library for creating EarthNet-style minicubes.*
 
 
 <a href='https://pypi.python.org/pypi/earthnet-minicuber'>
