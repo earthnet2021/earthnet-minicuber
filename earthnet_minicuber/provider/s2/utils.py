@@ -26,11 +26,9 @@ SOFTWARE.
 import xml.etree.ElementTree as ET
 
 import numpy as np
-import pandas as pd
-import pystac_client
-import rasterio.features
+
 import requests
-import stackstac
+
 import xarray as xr
 from pyproj import CRS, Transformer
 from pyproj.aoi import AreaOfInterest

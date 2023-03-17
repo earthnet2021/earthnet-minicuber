@@ -127,7 +127,7 @@ class Sentinel1(provider_base.Provider):
             stack = stack.to_dataset("band")
 
             if self.speckle_filter:
-                valid = xr.ufuncs.isfinite(stack)
+                valid = np.isfinite(stack)
                 #stack = stack.where(valid, 0)
 
                 if "s1_vv" in stack.variables:
@@ -145,7 +145,10 @@ class Sentinel1(provider_base.Provider):
             if self.aws_bucket == "dea":
                 stack = stack.rename({"x": "lon", "y": "lat"})
             
-            stack = stack.groupby("time.date").median("time").rename({"date": "time"})
+            if len(stack.time) > 0:
+                stack = stack.groupby("time.date").last(skipna = False).rename({"date": "time"})
+            else:
+                return None
 
             stack["time"] = np.array([str(d) for d in stack.time.values], dtype="datetime64[D]")
 

@@ -121,7 +121,11 @@ if __name__ == "__main__":
     start_date = np.datetime64('2016-01-01') + np.random.default_rng(args.idx).integers(0, 1821) if args.dataset == "train" else np.datetime64('2016-01-01')
 
     if args.dataset == "test":
-        for start_date, end_date, idx in [(np.datetime64('2016-01-01'), np.datetime64('2016-12-31'), 1),(np.datetime64('2017-01-01'), np.datetime64('2017-12-31'), 2),(np.datetime64('2018-01-01'), np.datetime64('2018-12-31'), 3),(np.datetime64('2019-01-01'), np.datetime64('2019-12-31'), 4), (np.datetime64('2020-01-01'), np.datetime64('2020-03-31'), 5),(np.datetime64('2021-01-01'), np.datetime64('2022-03-31'), 6)]:
+        for start_date, end_date, idx in [(np.datetime64('2016-01-01'), np.datetime64('2016-12-31'), 1),(np.datetime64('2017-01-01'), np.datetime64('2017-12-31'), 2),(np.datetime64('2018-01-01'), np.datetime64('2018-12-31'), 3),(np.datetime64('2019-01-01'), np.datetime64('2019-12-31'), 4), (np.datetime64('2020-01-01'), np.datetime64('2020-12-31'), 5),(np.datetime64('2021-01-01'), np.datetime64('2022-03-31'), 6)]:
+
+            if idx != 5:
+                continue
+            
             spec["time_interval"] = f"{start_date}/{end_date}"
 
 

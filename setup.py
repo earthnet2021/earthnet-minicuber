@@ -6,6 +6,8 @@ with open("README.md", "r") as fh:
 
 
 install_requires = [
+    "torch",
+    "segmentation-models-pytorch",
     "numpy",
     "matplotlib",
     "pillow",
@@ -13,11 +15,10 @@ install_requires = [
     "zarr",
     "dask",
     "netcdf4",
-    "earthnet", 
     "pandas",
-    "planetary_computer",
+    "planetary-computer",
     "pyproj",
-    "pystac_client",
+    "pystac-client",
     "rasterio",
     "requests",
     "stackstac",
@@ -30,7 +31,7 @@ install_requires = [
 
 
 setup(name='earthnet-minicuber', 
-        version='0.0.1',
+        version='0.1.0',
         description="EarthNet Minicuber",
         author="Vitus Benson, Christian Requena-Mesa",
         author_email="vbenson@bgc-jena.mpg.de",
@@ -42,7 +43,7 @@ setup(name='earthnet-minicuber',
                 "License :: OSI Approved :: MIT License",
                 "Programming Language :: Python :: 3"
                  ],
-        packages=find_packages(),#["earthnet_minicuber"],#find_packages(),
+        packages=["earthnet_minicuber"],#find_packages(),
         install_requires=install_requires,
         extras_require={
             "EE": ["earthengine-api","wxee","eemont"],
