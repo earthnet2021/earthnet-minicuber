@@ -94,6 +94,7 @@ Kwargs:
 - `five_daily_filter`: If `True` returns a regular 5-daily cycle starting with the first date in `full_time_interval`. It has no effect, if `best_orbit_filter` is used.
 - `brdf_correction`: If `True`, does BRDF correction based on the Sentinel 2 Metadata (illumination angles).
 - `cloud_mask`: If `True`, creates a cloud and cloud shadow mask based on deep learning. It automatically finds the best available cloud mask for the requested `bands`.
+- `correct_processing_baseline`: If `True` (default): corrects the shift of +1000 that exists in Sentinel 2 data with processing baseline >= 4.0
 
 
 ## Installation
@@ -105,7 +106,7 @@ conda create -n minicuber python=3.10 gdal cartopy -c conda-forge
 conda deactivate
 conda activate minicuber
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-pip install scipy matplotlib seaborn netCDF4 xarray zarr dask shapely pillow pandas s3fs fsspec boto3 psycopg2 pystac-client stackstac planetary-computer rasterio[s3] rioxarray odc-algo segmentation-models-pytorch folium ipykernel ipywidgets
+pip install scipy matplotlib seaborn netCDF4 xarray zarr dask shapely pillow pandas s3fs fsspec boto3 psycopg2 pystac-client stackstac planetary-computer rasterio[s3] rioxarray odc-algo segmentation-models-pytorch folium ipykernel ipywidgets sen2nbar
 ```
 
 Install this package with PyPI:
@@ -134,4 +135,4 @@ Similar to this package, [cubo](https://github.com/davemlz/cubo) provides a high
 
 ## Acknowledgement
 
-This project has received funding from the European Union’s Horizon 2020 research and innovation programme under grant agreement No 101004188 ([DeepCube Horizon 2020](https://deepcube-h2020.eu/ "DeepCube Horizon 2020")). We are grateful to David Montero Loaiza for providing the code for the Sentinel 2 BRDF correction. We are grateful to César Aybar and the [CloudSEN12](https://cloudsen12.github.io/) team, their work forms the basis for the cloud mask implemented in earthnet-minicuber.
+This project has received funding from the European Union’s Horizon 2020 research and innovation programme under grant agreement No 101004188 ([DeepCube Horizon 2020](https://deepcube-h2020.eu/ "DeepCube Horizon 2020")). We are grateful to David Montero Loaiza for providing the [sen2nbar](https://github.com/ESDS-Leipzig/sen2nbar) package used for the Sentinel 2 BRDF correction. We are grateful to César Aybar and the [CloudSEN12](https://cloudsen12.github.io/) team, their work forms the basis for the cloud mask implemented in earthnet-minicuber.

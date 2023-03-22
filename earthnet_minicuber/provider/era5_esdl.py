@@ -19,18 +19,22 @@ SHORT_TO_LONG_NAMES = {
 
 class ERA5_ESDL(provider_base.Provider):
 
-    def __init__(self, bands = ['e', 'pet', 'pev', 'ssrd', 't2m', 't2mmax', 't2mmin','tp'], zarrpath = None):
+    def __init__(self, bands = ['e', 'pet', 'pev', 'ssrd', 't2m', 't2mmax', 't2mmin','tp'], zarrpath = None, proxy = None):
         self.is_temporal = True
         
         self.bands = bands
         self.zarrpath = zarrpath
 
-        if zarrpath is not None:
+        if zarrpath is None:
             self.s3 = s3fs.S3FileSystem(anon=True,
             client_kwargs={
             'endpoint_url': 'https://s3.bgc-jena.mpg.de:9000',
             'region_name': 'thuringia',
-            })
+            },
+            config_kwargs = {
+            "proxies": {'http': proxy}
+            } if proxy else {}
+            )
 
     def load_data(self, bbox, time_interval, **kwargs):
         
