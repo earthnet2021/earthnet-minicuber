@@ -31,7 +31,7 @@ install_requires = [
 
 
 setup(name='earthnet-minicuber', 
-        version='0.1.1',
+        version='0.1.2',
         description="EarthNet Minicuber",
         author="Vitus Benson, Christian Requena-Mesa",
         author_email="vbenson@bgc-jena.mpg.de",

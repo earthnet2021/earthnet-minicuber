@@ -14,7 +14,7 @@ from contextlib import nullcontext
 
 from shapely.geometry import Polygon, box
 
-from .sen2flux import sunAndViewAngles, computeNBAR
+from .nbar import call_sen2nbar, correct_processing_baseline
 from .cloudmask import CloudMask, cloud_mask_reduce
 from .. import provider_base
 
@@ -39,7 +39,7 @@ S2BANDS_DESCRIPTION = {
 
 class Sentinel2(provider_base.Provider):
 
-    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, five_daily_filter = False, brdf_correction = True, cloud_mask = True, aws_bucket = "planetary_computer", s2_avail_var = True):
+    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, five_daily_filter = False, brdf_correction = True, cloud_mask = True, aws_bucket = "planetary_computer", s2_avail_var = True, correct_processing_baseline = True):
         
         self.is_temporal = True
 
@@ -54,6 +54,7 @@ class Sentinel2(provider_base.Provider):
         self.brdf_correction = brdf_correction
         self.aws_bucket = aws_bucket
         self.s2_avail_var = s2_avail_var
+        self.correct_processing_baseline = correct_processing_baseline
 
         if aws_bucket == "dea":
             URL = "https://explorer.digitalearth.africa/stac/"
@@ -200,20 +201,14 @@ class Sentinel2(provider_base.Provider):
 
                 stack = stack.sel(time = stack.time.dt.date.isin(dates))
 
-
-            if self.brdf_correction:
-
-                stack_plus_metadata, stack = sunAndViewAngles(search.get_all_items(), stack, aws_bucket = self.aws_bucket)
-
-                if stack_plus_metadata is None:
-                    print("Skipping, no valid metadata for BRDF correction")
-                    return None
-                
-                stack = computeNBAR(stack_plus_metadata, stack)
-
+            if self.correct_processing_baseline:
+                stack = correct_processing_baseline(stack, items_s2)
 
             if self.cloud_mask:
                 stack = self.cloud_mask(stack.compute())
+
+            if self.brdf_correction:
+                stack = call_sen2nbar(stack, items_s2, epsg)
                     
             bands = stack.band.values
             stack["band"] = [f"s2_{b}" for b in stack.band.values]
