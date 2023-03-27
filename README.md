@@ -38,7 +38,7 @@ import earthnet_minicuber as emc
 specs = {
     "lon_lat": (43.598946, 3.087414), # center pixel
     "xy_shape": (256, 256), # width, height of cutout around center pixel
-    "resolution": 20, # in meters.. will use this on a local UTM grid..
+    "resolution": 10, # in meters.. will use this on a local UTM grid..
     "time_interval": "2021-07-01/2021-07-31",
     "providers": [
         {
@@ -94,6 +94,7 @@ Kwargs:
 - `five_daily_filter`: If `True` returns a regular 5-daily cycle starting with the first date in `full_time_interval`. It has no effect, if `best_orbit_filter` is used.
 - `brdf_correction`: If `True`, does BRDF correction based on the Sentinel 2 Metadata (illumination angles).
 - `cloud_mask`: If `True`, creates a cloud and cloud shadow mask based on deep learning. It automatically finds the best available cloud mask for the requested `bands`.
+- `cloud_mask_rescale_factor`: If using cloud mask and a lower resolution than 10m, set this rescaling factor to the multiple of 10m that you are requesting. E.g. if `resolution = 20`, set `cloud_mask_rescale_factor = 2`.
 - `correct_processing_baseline`: If `True` (default): corrects the shift of +1000 that exists in Sentinel 2 data with processing baseline >= 4.0
 
 

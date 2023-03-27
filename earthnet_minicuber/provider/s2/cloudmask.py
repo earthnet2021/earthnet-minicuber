@@ -26,8 +26,9 @@ def get_checkpoint(bands_avail):
 
 
 class CloudMask:
-    def __init__(self, bands = ["B02", "B03", "B04", "B8A"]):
+    def __init__(self, bands = ["B02", "B03", "B04", "B8A"], cloud_mask_rescale_factor = None):
 
+        self.cloud_mask_rescale_factor = cloud_mask_rescale_factor
         self.bands = bands
         ckpt, self.ckpt_bands = get_checkpoint(bands)
 
@@ -63,12 +64,21 @@ class CloudMask:
 
         x = torch.nn.functional.pad(x, (w_pad_left, w_pad_right, h_pad_left, h_pad_right), mode = "reflect")
 
+        if self.cloud_mask_rescale_factor:
+            #orig_size = (x.shape[-2], x.shape[-1])
+            x = torch.nn.functional.interpolate(x, scale_factor = self.cloud_mask_rescale_factor, mode = 'bilinear')
+
         with torch.no_grad():
             y_hat = self.model(x)
 
-        y_hat = y_hat[:, :, h_pad_left:-h_pad_right, w_pad_left:-w_pad_right]
+        y_hat = torch.argmax(y_hat, dim = 1).float()
 
-        ds["mask"] = (("time", "y", "x"),torch.argmax(y_hat, dim = 1).float().cpu().numpy())
+        if self.cloud_mask_rescale_factor:
+            y_hat = torch.nn.functional.max_pool2d(y_hat[:,None,...], kernel_size = self.cloud_mask_rescale_factor)[:,0,...]#torch.nn.functional.interpolate(y_hat, size = orig_size, mode = "bilinear")
+                                                
+        y_hat = y_hat[:, h_pad_left:-h_pad_right, w_pad_left:-w_pad_right]
+
+        ds["mask"] = (("time", "y", "x"),y_hat.cpu().numpy())
 
         return ds.to_array("band")
     
