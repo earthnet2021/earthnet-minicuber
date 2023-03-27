@@ -53,13 +53,16 @@ def call_sen2nbar(stack, items, epsg):
     # Compute the c-factor per item and extract the processing baseline
     c_array = []
     for item in ordered_items:#tqdm(ordered_items, disable=quiet):
-        c = c_factor_from_item(item, f"epsg:{epsg}")
-        c = c.interp(
-            y=stack.y.values,
-            x=stack.x.values,
-            method="linear",
-            kwargs={"fill_value": "extrapolate"},
-        )
+        try:
+            c = c_factor_from_item(item, f"epsg:{epsg}")
+            c = c.interp(
+                y=stack.y.values,
+                x=stack.x.values,
+                method="linear",
+                kwargs={"fill_value": "extrapolate"},
+            )
+        except ValueError:
+            c = xr.DataArray(np.full((9,len(stack.y), len(stack.x)), np.NaN), coords = {"band": ['B02','B03','B04','B05','B06','B07','B08','B11','B12'], "y": stack.y, "x": stack.x}, dims = ("band", "y", "x"))
         c_array.append(c)
 
     orig_bands = stack.band.values.tolist()

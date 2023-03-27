@@ -39,11 +39,11 @@ S2BANDS_DESCRIPTION = {
 
 class Sentinel2(provider_base.Provider):
 
-    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, five_daily_filter = False, brdf_correction = True, cloud_mask = True, aws_bucket = "planetary_computer", s2_avail_var = True, correct_processing_baseline = True):
+    def __init__(self, bands = ["AOT", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "WVP"], best_orbit_filter = True, five_daily_filter = False, brdf_correction = True, cloud_mask = True, cloud_mask_rescale_factor = None, aws_bucket = "planetary_computer", s2_avail_var = True, correct_processing_baseline = True):
         
         self.is_temporal = True
 
-        self.cloud_mask = CloudMask(bands=bands) if cloud_mask else None
+        self.cloud_mask = CloudMask(bands=bands, cloud_mask_rescale_factor = cloud_mask_rescale_factor) if cloud_mask else None
 
         if self.cloud_mask and "SCL" not in bands:
             bands += ["SCL"]
@@ -200,6 +200,9 @@ class Sentinel2(provider_base.Provider):
                 dates = np.arange(min_date, max_date+1, 5)
 
                 stack = stack.sel(time = stack.time.dt.date.isin(dates))
+
+            if len(stack.time) == 0:
+                return None
 
             if self.correct_processing_baseline:
                 stack = correct_processing_baseline(stack, items_s2)
