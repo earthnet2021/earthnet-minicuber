@@ -227,7 +227,7 @@ class Minicuber:
         if compute:
             cube = cube.compute()
         
-        if "time" in cube:
+        if False: # "time" in cube:
             cube['time'] = pd.DatetimeIndex(cube['time'].values)
 
             cube = cube.sel(time = slice(self.time_interval[:10], self.time_interval[-10:]))
