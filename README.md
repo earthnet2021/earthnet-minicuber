@@ -107,7 +107,7 @@ conda create -n minicuber python=3.10 gdal cartopy -c conda-forge
 # INSTALL HOPSWORKS, JUPYTER ETC.
 
 # IF TORCH NOT INSTALLED:
-pip install torch==1.13.1 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 # INSTALL MINICUBER
 pip install git+https://github.com/earthnet2021/earthnet-minicuber.git@hops
