@@ -102,7 +102,8 @@ Kwargs:
 
 
 ```
-conda create -n minicuber python=3.10 gdal cartopy -c conda-forge
+conda create -n minicuber python=3.10
+conda install gdal cartopy xarray netcdf4 -c conda-forge
 
 # INSTALL HOPSWORKS, JUPYTER ETC.
 
@@ -113,7 +114,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install git+https://github.com/earthnet2021/earthnet-minicuber.git@hops
 
 # INSTALL TOOLKIT
-pip install earthnet folium
+pip install earthnet folium h5netcdf
 
 ```
 
