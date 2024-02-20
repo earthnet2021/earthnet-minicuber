@@ -15,17 +15,18 @@ from . import provider_base
 
 class ESAWorldcover(provider_base.Provider):
 
-    def __init__(self, bands = ["lc"],aws_bucket = "dea"):
+    def __init__(self, bands = ["lc"],aws_bucket = "planetary_computer"):
         self.is_temporal = False
         self.bands = bands
+        assert aws_bucket == "planetary_computer"
         self.aws_bucket = aws_bucket
 
-        if aws_bucket == "dea":
-            URL = "https://explorer.digitalearth.africa/stac/"
-            os.environ['AWS_S3_ENDPOINT'] = 's3.af-south-1.amazonaws.com'
+        # if aws_bucket == "dea":
+        #     URL = "https://explorer.digitalearth.africa/stac/"
+        #     os.environ['AWS_S3_ENDPOINT'] = 's3.af-south-1.amazonaws.com'
 
-        else:#elif aws_bucket == "planetary_computer":
-            URL = 'https://planetarycomputer.microsoft.com/api/stac/v1'
+        # else:#elif aws_bucket == "planetary_computer":
+        URL = 'https://planetarycomputer.microsoft.com/api/stac/v1'
 
         self.catalog = pystac_client.Client.open(URL)
 
@@ -71,7 +72,7 @@ class ESAWorldcover(provider_base.Provider):
             metadata = items_esawc.to_dict()['features'][0]["properties"]
             epsg = metadata["proj:epsg"]
 
-            stack = stackstac.stack(items_esawc, epsg = epsg, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 1024)
+            stack = stackstac.stack(items_esawc, epsg = epsg, dtype = "float32", properties = False, band_coords = False, bounds_latlon = bbox, xy_coords = 'center', chunksize = 1024, assets =["map"] if self.aws_bucket == "planetary_computer" else None)
             stack["band"] = ["lc"]
 
 

@@ -1,22 +1,21 @@
 
 import os
-import pystac_client
-import stackstac
-import rasterio
-
-import planetary_computer as pc
-from rasterio import RasterioIOError
-import time
-import numpy as np
-import xarray as xr
 import random
+import time
 from contextlib import nullcontext
 
+import numpy as np
+import planetary_computer as pc
+import pystac_client
+import rasterio
+import stackstac
+import xarray as xr
+from rasterio import RasterioIOError
 from shapely.geometry import Polygon, box
 
-from .nbar import call_sen2nbar, correct_processing_baseline
-from .cloudmask import CloudMask, cloud_mask_reduce
 from .. import provider_base
+from .cloudmask import CloudMask, cloud_mask_reduce
+from .nbar import call_sen2nbar, correct_processing_baseline
 
 S2BANDS_DESCRIPTION = {
     "B01": "Coastal aerosol",
@@ -64,7 +63,7 @@ class Sentinel2(provider_base.Provider):
             URL = 'https://planetarycomputer.microsoft.com/api/stac/v1'
 
         else:
-            URL = "https://earth-search.aws.element84.com/v0"
+            URL = "https://earth-search.aws.element84.com/v1"
             if 'AWS_S3_ENDPOINT' in os.environ:
                 del os.environ['AWS_S3_ENDPOINT']
         
@@ -123,7 +122,7 @@ class Sentinel2(provider_base.Provider):
 
             search = self.catalog.search(
                         bbox = bbox,
-                        collections=["s2_l2a" if self.aws_bucket == "dea" else ("sentinel-2-l2a" if self.aws_bucket == "planetary_computer" else "sentinel-s2-l2a-cogs")],
+                        collections=["s2_l2a" if self.aws_bucket == "dea" else ("sentinel-2-l2a" if self.aws_bucket == "planetary_computer" else "sentinel-2-l2a")],
                         datetime=time_interval
                     )
             
@@ -201,6 +200,7 @@ class Sentinel2(provider_base.Provider):
 
                 stack = stack.sel(time = stack.time.dt.date.isin(dates))
 
+            
             if len(stack.time) == 0:
                 return None
 
@@ -239,6 +239,7 @@ class Sentinel2(provider_base.Provider):
             for band in bands:
                 stack[f"s2_{band}"].attrs = self.get_attrs_for_band(band)
             
+            stack["time"] = stack.time.astype("datetime64[ns]")
             stack.attrs["epsg"] = epsg
 
             return stack

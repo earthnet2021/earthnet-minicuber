@@ -106,8 +106,8 @@ Prerequisites (We use an Anaconda environment):
 conda create -n minicuber python=3.10 gdal cartopy -c conda-forge
 conda deactivate
 conda activate minicuber
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-pip install scipy matplotlib seaborn netCDF4 xarray zarr dask shapely pillow pandas s3fs fsspec boto3 psycopg2 pystac-client stackstac planetary-computer rasterio[s3] rioxarray odc-algo segmentation-models-pytorch folium ipykernel ipywidgets sen2nbar
+pip install torch==1.13.1 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install scipy matplotlib seaborn netCDF4 xarray zarr dask shapely pillow pandas s3fs fsspec boto3 psycopg2 pystac-client stackstac planetary-computer rasterio rioxarray odc-algo segmentation-models-pytorch folium ipykernel ipywidgets sen2nbar
 ```
 
 Install this package with PyPI:

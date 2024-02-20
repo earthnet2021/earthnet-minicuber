@@ -6,7 +6,9 @@ with open("README.md", "r") as fh:
 
 
 install_requires = [
-    "torch",
+    "torch==1.13.1",
+    "timm",
+    "torchvision",
     "segmentation-models-pytorch",
     "numpy",
     "matplotlib",
@@ -26,7 +28,9 @@ install_requires = [
     "shapely",
     "fsspec",
     "aiohttp",
-    "odc-algo"
+    "odc-algo",
+    "sen2nbar",
+    "s3fs"
     ]
 
 
